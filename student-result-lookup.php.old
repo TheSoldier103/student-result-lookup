@@ -459,7 +459,7 @@ function srl_handle_form_submission() {
             return;
         }
 
-        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ Check debt against what Moodle actually has on record, not what the student typed
+        // í ½íº« Check debt against what Moodle actually has on record, not what the student typed
         if (str_ends_with($student['idnumber'], '-DEBT')) {
             echo '<div class="srl-container">';
             echo '<div class="srl-error">You have outstanding fees. Please clear all debts with the school management to view your results.</div>';
@@ -528,337 +528,184 @@ function srl_handle_form_submission() {
  * Display grades for a student in a course
  */
 function srl_display_grades($token, $moodle_endpoint, $student_id, $course_id) {
+    // Fetch grades
     $grades_data = srl_fetch_grades($moodle_endpoint, $token, $student_id, $course_id);
+    
     if (!$grades_data) {
         echo '<div class="srl-error">Unable to fetch grades.</div>';
         return;
     }
- 
-    $usergrade    = $grades_data['usergrades'][0];
+
+    $usergrade = $grades_data['usergrades'][0];
+    
+    // Get student details (sex)
     $student_data = srl_fetch_student_details($moodle_endpoint, $token, $usergrade['useridnumber']);
-    $course_info  = srl_fetch_course_details($moodle_endpoint, $token, $course_id);
- 
+    
+    // Get course details
+    $course_info = srl_fetch_course_details($moodle_endpoint, $token, $course_id);
+
+    // í ½íº« Stop if results not ready
     if (empty($course_info['course_complete'])) {
-        echo '<div class="srl-container"><div class="srl-error">Exam results are not ready yet. Please check back later.</div></div>';
+        echo '<div class="srl-container">';
+        echo '<div class="srl-error">Exam results are not ready yet. Please check back later.</div>';
+        echo '</div>';
         return;
     }
- 
-    $announcements  = srl_fetch_announcements($moodle_endpoint, $token, $course_id);
-    $is_third_term  = ($course_info['term'] === '3rd Term');
-    $organized      = srl_organize_grade_items($usergrade['gradeitems'], $is_third_term);
- 
+    
+    // Get announcements
+    $announcements = srl_fetch_announcements($moodle_endpoint, $token, $course_id);
+    
+    // Organize grade items
+    $organized = srl_organize_grade_items($usergrade['gradeitems']);
+
+    // Start rendering
     echo '<div class="srl-container">';
- 
-    // PDF download button
+    
+    // PDF Download button
     $pdf_url = add_query_arg([
         'srl_download_pdf' => '1',
-        'student_id'       => (int)$usergrade['userid'],
-        'course_id'        => (int)$usergrade['courseid'],
-        'srl_nonce'        => wp_create_nonce('srl_pdf_download'),
+        'student_id' => (int)$usergrade['userid'],
+        'course_id' => (int)$usergrade['courseid'],
+        'srl_nonce' => wp_create_nonce('srl_pdf_download')
     ], home_url());
- 
-    echo '<a href="' . esc_url($pdf_url) . '" class="srl-btn" style="display:inline-block;text-decoration:none;margin-bottom:15px;">Download Report Card (PDF)</a>';
+    
+    echo '<a href="' . esc_url($pdf_url) . '" class="srl-btn" style="display:inline-block; text-decoration:none; margin-bottom:15px;">
+        Download Report Card (PDF)
+    </a>';
+    
     echo '<button onclick="window.print()" class="srl-print-btn">Print Report Card</button>';
- 
+    
     echo '<div class="srl-report-card">';
- 
+    
     // Header
     echo '<div class="srl-header">';
     echo '<h2>Petra Christian Academy</h2>';
-    echo '<p style="font-style:italic;color:#666;margin:5px 0;">Righteousness and Excellence</p>';
+    echo '<p style="font-style:italic; color:#666; margin:5px 0;">Righteousness and Excellence</p>';
     echo '<div class="student-name">' . esc_html($usergrade['userfullname']) . '</div>';
     echo '</div>';
- 
+    
     // Student info
     echo '<div class="srl-info-grid">';
-    echo '<div class="srl-info-item"><strong>Sex:</strong> '     . esc_html($student_data['sex'] ?? 'N/A') . '</div>';
-    echo '<div class="srl-info-item"><strong>Class:</strong> '   . esc_html($course_info['class'])          . '</div>';
-    echo '<div class="srl-info-item"><strong>Term:</strong> '    . esc_html($course_info['term'])           . '</div>';
-    echo '<div class="srl-info-item"><strong>Session:</strong> ' . esc_html($course_info['session'])        . '</div>';
+    echo '<div class="srl-info-item"><strong>Sex:</strong> ' . esc_html($student_data['sex'] ?? 'N/A') . '</div>';
+    echo '<div class="srl-info-item"><strong>Class:</strong> ' . esc_html($course_info['class']) . '</div>';
+    echo '<div class="srl-info-item"><strong>Term:</strong> ' . esc_html($course_info['term']) . '</div>';
+    echo '<div class="srl-info-item"><strong>Session:</strong> ' . esc_html($course_info['session']) . '</div>';
     echo '</div>';
- 
-    // ----------------------------------------------------------------
-    // PERFORMANCE SUMMARY
-    // ----------------------------------------------------------------
+
+    // Performance Summary
     if ($organized['course_total']) {
-        $total    = $organized['course_total'];
-        $position = srl_format_position($total['rank'] ?? null) . ' out of ' . ($total['numusers'] ?? 'N/A');
- 
+        $total = $organized['course_total'];
         echo '<div class="srl-section-title">Performance Summary</div>';
         echo '<div class="srl-performance-summary">';
- 
-        // Standard 4 boxes
-        foreach ([
-            ['Position',          $position],
-            ['Total Obtained',    $total['gradeformatted']],
-            ['Total Obtainable',  $total['grademax']],
-            ['Percentage',        $total['percentageformatted']],
-        ] as [$label, $value]) {
-            echo '<div class="srl-stat-card">';
-            echo '<div class="srl-stat-label">' . ($is_third_term ? $label . ' (3rd)' : $label) . '</div>';
-            echo '<div class="srl-stat-value">' . esc_html($value) . '</div>';
-            echo '</div>';
-        }
- 
-        // 3rd term: add cumulative boxes
-        if ($is_third_term) {
-            $cum = srl_calc_overall_cumulative($organized['subjects']);
-            echo '<div class="srl-stat-card">';
-            echo '<div class="srl-stat-label">Cumulative Total</div>';
-            echo '<div class="srl-stat-value">' . esc_html($cum['total']) . '</div>';
-            echo '</div>';
-            echo '<div class="srl-stat-card">';
-            echo '<div class="srl-stat-label">Cumulative Average</div>';
-            echo '<div class="srl-stat-value">' . esc_html($cum['avg']) . '</div>';
-            echo '</div>';
-        }
- 
-        echo '</div>'; // .srl-performance-summary
+        
+        $position = srl_format_position($total['rank'] ?? null);
+        echo '<div class="srl-stat-card">';
+        echo '<div class="srl-stat-label">Position</div>';
+        echo '<div class="srl-stat-value">' . esc_html($position) . ' out of ' . esc_html($total['numusers'] ?? 'N/A') . '</div>';
+        echo '</div>';
+        
+        echo '<div class="srl-stat-card">';
+        echo '<div class="srl-stat-label">Total Obtained</div>';
+        echo '<div class="srl-stat-value">' . esc_html($total['gradeformatted']) . '</div>';
+        echo '</div>';
+        
+        echo '<div class="srl-stat-card">';
+        echo '<div class="srl-stat-label">Total Obtainable</div>';
+        echo '<div class="srl-stat-value">' . esc_html($total['grademax']) . '</div>';
+        echo '</div>';
+        
+        echo '<div class="srl-stat-card">';
+        echo '<div class="srl-stat-label">Percentage</div>';
+        echo '<div class="srl-stat-value">' . esc_html($total['percentageformatted']) . '</div>';
+        echo '</div>';
+        
+        echo '</div>';
     }
- 
-    // ----------------------------------------------------------------
-    // SUBJECT PERFORMANCE
-    // ----------------------------------------------------------------
+
+    // Subject Performance
     if (!empty($organized['subjects'])) {
         echo '<div class="srl-section-title">Subject Performance</div>';
- 
-        if ($is_third_term) {
-            srl_render_third_term_subject_table($organized['subjects']);
-        } else {
-            srl_render_standard_subject_table($organized['subjects']);
+        
+        foreach ($organized['subjects'] as $subject_name => $subject_data) {
+            $category = $subject_data['category'];
+            $components = $subject_data['components'];
+            
+            echo '<div class="srl-subject-card">';
+            echo '<div class="srl-subject-header">';
+            echo '<span class="srl-subject-name">' . esc_html($subject_name) . '</span>';
+            echo '<span class="srl-subject-total">Total: ' . esc_html($category['gradeformatted']) . '/' . esc_html($category['grademax']) . ' | Grade: ' . esc_html($category['lettergradeformatted']) . ' | Position: ' . esc_html(srl_format_position($category['rank'] ?? null)) . ' out of ' . esc_html($category['numusers'] ?? 'N/A') . '</span>';
+            echo '</div>';
+            
+            if (!empty($components)) {
+                echo '<div class="srl-subject-breakdown">';
+                foreach ($components as $comp) {
+                    $comp_name = str_replace($subject_name . ' - ', '', $comp['itemname']);
+                    echo '<div class="srl-breakdown-item"><strong>' . esc_html($comp_name) . ':</strong> ' . esc_html($comp['gradeformatted']) . '/' . esc_html($comp['grademax']) . '</div>';
+                }
+                echo '</div>';
+            }
+            
+            echo '</div>';
         }
     }
- 
-    // ----------------------------------------------------------------
-    // ATTENDANCE
-    // ----------------------------------------------------------------
+
+    // Attendance
     if ($organized['attendance']['opened'] || $organized['attendance']['present']) {
         echo '<div class="srl-section-title">Attendance Summary</div>';
         echo '<div class="srl-attendance-grid">';
-        echo '<div class="srl-attendance-item"><strong>' . esc_html($announcements['days_opened'] ?? 'N/A') . '</strong><span>Days School Opened</span></div>';
-        echo '<div class="srl-attendance-item"><strong>' . esc_html($organized['attendance']['present'] ?? 'N/A') . '</strong><span>Days Present</span></div>';
+        
+        echo '<div class="srl-attendance-item">';
+        echo '<strong>' . esc_html($announcements['days_opened'] ?? 'N/A') . '</strong>';
+        echo '<span>Days School Opened</span>';
+        echo '</div>';
+        
+        echo '<div class="srl-attendance-item">';
+        echo '<strong>' . esc_html($organized['attendance']['present'] ?? 'N/A') . '</strong>';
+        echo '<span>Days Present</span>';
+        echo '</div>';
+        
         echo '</div>';
     }
- 
-    // ----------------------------------------------------------------
-    // REMARKS
-    // ----------------------------------------------------------------
+
+    // Remarks
     if ($organized['remarks']['teacher'] || $organized['remarks']['principal']) {
         echo '<div class="srl-section-title">Remarks</div>';
         echo '<div class="srl-remarks-grid">';
+        
         if ($organized['remarks']['teacher']) {
-            echo '<div class="srl-remark-box"><h4>Class Teacher\'s Remark</h4><p>' . wp_kses_post($organized['remarks']['teacher']) . '</p></div>';
+            echo '<div class="srl-remark-box">';
+            echo '<h4>Class Teacher\'s Remark</h4>';
+            echo '<p>' . wp_kses_post($organized['remarks']['teacher']) . '</p>';
+            echo '</div>';
         }
+        
         if ($organized['remarks']['principal']) {
-            echo '<div class="srl-remark-box"><h4>Principal\'s/Vice-Principal\'s Remarks</h4><p>' . wp_kses_post($organized['remarks']['principal']) . '</p></div>';
+            echo '<div class="srl-remark-box">';
+            echo '<h4>Principal\'s/Vice-Principal\'s Remarks</h4>';
+            echo '<p>' . wp_kses_post($organized['remarks']['principal']) . '</p>';
+            echo '</div>';
         }
+        
         echo '</div>';
     }
- 
-    // ----------------------------------------------------------------
-    // ANNOUNCEMENTS
-    // ----------------------------------------------------------------
+    
+    // Announcements
     if (!empty($announcements)) {
         echo '<div class="srl-section-title">Announcements</div>';
-        if (!empty($announcements['next_term'])) echo '<p><strong>Next Term Begins:</strong> ' . esc_html($announcements['next_term']) . '</p>';
-        if (!empty($announcements['fees']))      echo '<p><strong>Fees for Next Term:</strong> ' . esc_html($announcements['fees']) . '</p>';
-        if (!empty($announcements['general']))   echo '<p><strong>Announcement:</strong> ' . wp_kses_post($announcements['general']) . '</p>';
+        
+        if (!empty($announcements['next_term'])) {
+            echo '<p><strong>Next Term Begins:</strong> ' . esc_html($announcements['next_term']) . '</p>';
+        }
+        if (!empty($announcements['fees'])) {
+            echo '<p><strong>Fees for Next Term:</strong> ' . esc_html($announcements['fees']) . '</p>';
+        }
+        if (!empty($announcements['general'])) {
+            echo '<p><strong>Announcement:</strong> ' . wp_kses_post($announcements['general']) . '</p>';
+        }
     }
- 
+
     echo '</div>'; // .srl-report-card
     echo '</div>'; // .srl-container
-}
-
-
-// ============================================================
-// NEW HELPER â€” 3rd term subject table for the web view
-// ============================================================
-
-function srl_render_third_term_subject_table($subjects) {
-    echo '<div style="overflow-x:auto;">';
-    echo '<table class="srl-grades-table" style="width:100%;border-collapse:collapse;font-size:13px;">';
-    echo '<thead><tr style="background:#34495e;color:#fff;text-align:center;">
-        <th style="padding:6px;text-align:left;border:1px solid #ccc;">Subject</th>
-        <th style="padding:6px;border:1px solid #ccc;">CA (20)</th>
-        <th style="padding:6px;border:1px solid #ccc;">1st Exam (30)</th>
-        <th style="padding:6px;border:1px solid #ccc;">2nd Exam (50)</th>
-        <th style="padding:6px;border:1px solid #ccc;">3rd Term Total (100)</th>
-        <th style="padding:6px;border:1px solid #ccc;">Grade (3rd)</th>
-        <th style="padding:6px;border:1px solid #ccc;">Position (3rd)</th>
-        <th style="padding:6px;border:1px solid #ccc;">1st Term (100)</th>
-        <th style="padding:6px;border:1px solid #ccc;">2nd Term (100)</th>
-        <th style="padding:6px;border:1px solid #ccc;">Cum. Total</th>
-        <th style="padding:6px;border:1px solid #ccc;">Cum. Avg</th>
-    </tr></thead><tbody>';
- 
-    $row = 0;
-    foreach ($subjects as $subject_name => $subject_data) {
-        $row++;
-        $bg         = ($row % 2 === 0) ? '#f9f9f9' : '#ffffff';
-        $category   = $subject_data['category'];
-        $components = $subject_data['components'];
- 
-        $ca = $exam1 = $exam2 = $term1 = $term2 = '-';
- 
-        foreach ($components as $comp) {
-            $type = srl_get_component_type_third($comp['itemname'], $subject_name);
-            switch ($type) {
-                case 'CA':       $ca    = $comp['gradeformatted']; break;
-                case '1ST_EXAM': $exam1 = $comp['gradeformatted']; break;
-                case '2ND_EXAM': $exam2 = $comp['gradeformatted']; break;
-                case '1ST_TERM': $term1 = $comp['gradeformatted']; break;
-                case '2ND_TERM': $term2 = $comp['gradeformatted']; break;
-            }
-        }
- 
-        $third_total = $category['gradeformatted'];
-        $grade_3rd   = $category['lettergradeformatted'];
-        $pos_3rd     = srl_format_position($category['rank'] ?? null);
-        $cum         = srl_calc_cumulative($term1, $term2, $third_total);
- 
-        echo '<tr style="background:' . $bg . ';text-align:center;">
-            <td style="padding:5px;text-align:left;border:1px solid #ddd;">' . esc_html($subject_name)  . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                 . esc_html($ca)            . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                 . esc_html($exam1)         . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                 . esc_html($exam2)         . '</td>
-            <td style="padding:5px;border:1px solid #ddd;font-weight:bold;">' . esc_html($third_total) . '</td>
-            <td style="padding:5px;border:1px solid #ddd;font-weight:bold;">' . esc_html($grade_3rd)   . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                 . esc_html($pos_3rd)       . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                 . esc_html($term1)         . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                 . esc_html($term2)         . '</td>
-            <td style="padding:5px;border:1px solid #ddd;font-weight:bold;">' . esc_html($cum['total']) . '</td>
-            <td style="padding:5px;border:1px solid #ddd;font-weight:bold;">' . esc_html($cum['avg'])   . '</td>
-        </tr>';
-    }
- 
-    echo '</tbody></table></div>';
-}
-
- 
-// ============================================================
-// NEW HELPER â€” standard subject table for the web view (extracted from old srl_display_grades)
-// ============================================================
- 
-function srl_render_standard_subject_table($subjects) {
-    foreach ($subjects as $subject_name => $subject_data) {
-        $category   = $subject_data['category'];
-        $components = $subject_data['components'];
- 
-        $ca = $exam1 = $exam2 = '-';
-        foreach ($components as $comp) {
-            $type = srl_get_component_type($comp['itemname']);
-            if ($type === 'CA')       $ca    = $comp['gradeformatted'];
-            if ($type === '1ST_EXAM') $exam1 = $comp['gradeformatted'];
-            if ($type === '2ND_EXAM') $exam2 = $comp['gradeformatted'];
-        }
- 
-        $comp_name_clean = str_replace($subject_name . ' - ', '', $subject_name);
- 
-        echo '<div class="srl-subject-card">';
-        echo '<div class="srl-subject-header">';
-        echo '<span class="srl-subject-name">' . esc_html($subject_name) . '</span>';
-        echo '<span class="srl-subject-total">Total: ' . esc_html($category['gradeformatted']) . '/' . esc_html($category['grademax'])
-            . ' | Grade: ' . esc_html($category['lettergradeformatted'])
-            . ' | Position: ' . esc_html(srl_format_position($category['rank'] ?? null)) . ' out of ' . esc_html($category['numusers'] ?? 'N/A') . '</span>';
-        echo '</div>';
- 
-        echo '<div class="srl-subject-breakdown">';
-        echo '<div class="srl-breakdown-item"><strong>CA:</strong> '       . esc_html($ca)    . '/20</div>';
-        echo '<div class="srl-breakdown-item"><strong>1st Exam:</strong> ' . esc_html($exam1) . '/30</div>';
-        echo '<div class="srl-breakdown-item"><strong>2nd Exam:</strong> ' . esc_html($exam2) . '/50</div>';
-        echo '</div>';
- 
-        echo '</div>';
-    }
-}
- 
- 
-// ============================================================
-// NEW HELPER â€” component type matcher for 3rd term items
-// ============================================================
- 
-function srl_get_component_type_third($itemname, $subject_name) {
-    $suffix = $itemname;
-    if (stripos($itemname, $subject_name) === 0) {
-        $suffix = trim(substr($itemname, strlen($subject_name)));
-        $suffix = ltrim($suffix, ' -');
-    }
- 
-    if (preg_match('/^CA$/i', $suffix))                   return 'CA';
-    if (preg_match('/^1st\s+Exam$/i', $suffix))           return '1ST_EXAM';
-    if (preg_match('/^2nd\s+Exam$/i', $suffix))           return '2ND_EXAM';
-    if (preg_match('/^1st\s+Term\s+Total$/i', $suffix))   return '1ST_TERM';
-    if (preg_match('/^2nd\s+Term\s+Total$/i', $suffix))   return '2ND_TERM';
- 
-    return 'UNKNOWN';
-}
-
-// ============================================================
-// Keep this existing helper â€” needed by srl_render_standard_subject_table
-// (already in your file, listed here for completeness)
-// ============================================================
- 
-function srl_get_component_type($itemname) {
-    if (preg_match('/\s-\s*CA\s*$/i', $itemname) || preg_match('/\s-\s*CA\s*\(/i', $itemname)) return 'CA';
-    if (stripos($itemname, '1st Exam') !== false) return '1ST_EXAM';
-    if (stripos($itemname, '2nd Exam') !== false) return '2ND_EXAM';
-    return 'UNKNOWN';
-}
- 
- 
-// ============================================================
-// NEW HELPER â€” per-subject cumulative (shared by web + PDF)
-// ============================================================
- 
-function srl_calc_cumulative($term1, $term2, $third_total) {
-    $values = [];
-    foreach ([$term1, $term2, $third_total] as $v) {
-        $clean = trim(str_replace(',', '.', $v));
-        if ($clean !== '-' && $clean !== 'N/A' && is_numeric($clean)) {
-            $values[] = (float)$clean;
-        }
-    }
- 
-    if (empty($values)) {
-        return ['total' => 'N/A', 'avg' => 'N/A'];
-    }
- 
-    return [
-        'total' => number_format(array_sum($values), 2),
-        'avg'   => number_format(array_sum($values) / count($values), 2),
-    ];
-}
- 
- 
-// ============================================================
-// NEW HELPER â€” overall cumulative across all subjects (for performance summary)
-// ============================================================
- 
-function srl_calc_overall_cumulative($subjects) {
-    $all_totals = [];
-    $all_avgs   = [];
- 
-    foreach ($subjects as $subject_name => $subject_data) {
-        $components = $subject_data['components'];
-        $term1 = $term2 = '-';
- 
-        foreach ($components as $comp) {
-            $type = srl_get_component_type_third($comp['itemname'], $subject_name);
-            if ($type === '1ST_TERM') $term1 = $comp['gradeformatted'];
-            if ($type === '2ND_TERM') $term2 = $comp['gradeformatted'];
-        }
- 
-        $third_total = $subject_data['category']['gradeformatted'];
-        $cum = srl_calc_cumulative($term1, $term2, $third_total);
- 
-        if ($cum['total'] !== 'N/A') $all_totals[] = (float)str_replace(',', '.', $cum['total']);
-        if ($cum['avg']   !== 'N/A') $all_avgs[]   = (float)str_replace(',', '.', $cum['avg']);
-    }
- 
-    return [
-        'total' => empty($all_totals) ? 'N/A' : number_format(array_sum($all_totals), 2),
-        'avg'   => empty($all_avgs)   ? 'N/A' : number_format(array_sum($all_avgs) / count($all_avgs), 2),
-    ];
 }
 
 /**
@@ -1100,62 +947,50 @@ function srl_fetch_staff($endpoint, $token, $course_id) {
 /**
  * Organize grade items by subject categories
  */
-function srl_organize_grade_items($gradeitems, $is_third_term = false) {
-    $subjects    = [];
+function srl_organize_grade_items($gradeitems) {
+    $subjects = [];
     $course_total = null;
-    $attendance  = ['opened' => null, 'present' => null];
-    $remarks     = ['teacher' => '', 'principal' => ''];
-    $categories  = [];
+    $attendance = ['opened' => null, 'present' => null];
+    $remarks = ['teacher' => '', 'principal' => ''];
+    
+    // First pass: identify categories and their components
+    $categories = [];
     $components_by_category = [];
- 
+    
     foreach ($gradeitems as $item) {
         if ($item['itemtype'] === 'course') {
             $course_total = $item;
- 
         } elseif ($item['itemtype'] === 'category') {
             $categories[$item['iteminstance']] = $item;
- 
         } elseif ($item['itemtype'] === 'mod') {
-            if (!empty($item['categoryid'])) {
+            if (isset($item['categoryid'])) {
                 $components_by_category[$item['categoryid']][] = $item;
             }
- 
         } elseif ($item['itemtype'] === 'manual') {
-            $name = $item['itemname'] ?? '';
- 
-            if (stripos($name, 'Days Present') !== false) {
+            if (isset($item['itemname']) && stripos($item['itemname'], 'Days Present') !== false) {
                 $attendance['present'] = $item['gradeformatted'];
- 
-            } elseif (stripos($name, 'Teacher') !== false && stripos($name, 'Remark') !== false) {
+            } elseif (isset($item['itemname']) && stripos($item['itemname'], 'Teacher') !== false && stripos($item['itemname'], 'Remark') !== false) {
                 $remarks['teacher'] = $item['feedback'];
- 
-            } elseif (stripos($name, 'Principal') !== false && stripos($name, 'Remark') !== false) {
+            } elseif (isset($item['itemname']) && stripos($item['itemname'], 'Principal') !== false && stripos($item['itemname'], 'Remark') !== false) {
                 $remarks['principal'] = $item['feedback'];
- 
-            } elseif ($is_third_term && (
-                preg_match('/\s*-\s*1st\s+Term\s+Total\s*$/i', $name) ||
-                preg_match('/\s*-\s*2nd\s+Term\s+Total\s*$/i', $name)
-            )) {
-                // Prior-term totals: attach to subject category via categoryid
-                if (!empty($item['categoryid'])) {
-                    $components_by_category[$item['categoryid']][] = $item;
-                }
             }
         }
     }
- 
+    
+    // Second pass: build subject structure
     foreach ($categories as $cat_id => $category) {
-        $subjects[$category['itemname']] = [
-            'category'   => $category,
-            'components' => $components_by_category[$cat_id] ?? [],
+        $subject_name = $category['itemname'];
+        $subjects[$subject_name] = [
+            'category' => $category,
+            'components' => $components_by_category[$cat_id] ?? []
         ];
     }
- 
+    
     return [
-        'subjects'     => $subjects,
+        'subjects' => $subjects,
         'course_total' => $course_total,
-        'attendance'   => $attendance,
-        'remarks'      => $remarks,
+        'attendance' => $attendance,
+        'remarks' => $remarks
     ];
 }
 
