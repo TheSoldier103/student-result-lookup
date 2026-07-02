@@ -2,85 +2,62 @@
 /**
  * Plugin Name: Student Result Lookup
  * Description: Parent-facing form to lookup student courses and grades dynamically from Moodle.
- * Version: 5.9-DEBT-FUNCTIONALITY
+ * Version: 6.0-SPLIT
  * Author: Petra Christian Academy
  */
 
 if (!defined('ABSPATH')) exit;
 
-// Include PDF Generator class
+require_once plugin_dir_path(__FILE__) . 'includes/class-moodle-api.php';
+require_once plugin_dir_path(__FILE__) . 'includes/class-grade-organizer.php';
+require_once plugin_dir_path(__FILE__) . 'includes/class-web-renderer.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdf-generator.php';
 
-// Handle PDF download request
+function srl_moodle_endpoint() {
+    return 'https://learn.petrachristianacademy.com/webservice/rest/server.php';
+}
+
+function srl_moodle_token() {
+    return defined('MOODLE_API_TOKEN') ? MOODLE_API_TOKEN : '';
+}
+
 add_action('init', 'srl_handle_pdf_download');
 
-/**
- * Handle PDF download request
- */
 function srl_handle_pdf_download() {
-    if (!isset($_GET['srl_download_pdf']) || !isset($_GET['srl_nonce'])) {
-        return;
-    }
-    
-    // Verify nonce
-    if (!wp_verify_nonce($_GET['srl_nonce'], 'srl_pdf_download')) {
-        wp_die('Security check failed');
-    }
-    
-    // Get parameters
+    if (!isset($_GET['srl_download_pdf']) || !isset($_GET['srl_nonce'])) return;
+    if (!wp_verify_nonce($_GET['srl_nonce'], 'srl_pdf_download')) wp_die('Security check failed');
+
     $student_id = isset($_GET['student_id']) ? sanitize_text_field($_GET['student_id']) : '';
-    $course_id = isset($_GET['course_id']) ? sanitize_text_field($_GET['course_id']) : '';
-    
-    if (empty($student_id) || empty($course_id)) {
-        wp_die('Missing required parameters.');
-    }
-    
-    // CRITICAL: Suppress all errors/notices to prevent output before PDF
+    $course_id  = isset($_GET['course_id']) ? sanitize_text_field($_GET['course_id']) : '';
+
+    if (empty($student_id) || empty($course_id)) wp_die('Missing required parameters.');
+
     error_reporting(0);
     ini_set('display_errors', 0);
-    
-    // Clean all output buffers before PDF generation
-    while (ob_get_level()) {
-        ob_end_clean();
-    }
-    
-    // Fetch all required data
-    $moodle_endpoint = 'https://learn.petrachristianacademy.com/webservice/rest/server.php';
-    $token = defined('MOODLE_API_TOKEN') ? MOODLE_API_TOKEN : '';
-    
-    if (empty($token)) {
-        wp_die('Moodle API token not configured.');
-    }
-    
-    // Get grades
-    $grades_data = srl_fetch_grades($moodle_endpoint, $token, $student_id, $course_id);
-    
-    // Get student details
-    $student_data = srl_fetch_student_details($moodle_endpoint, $token, $grades_data['usergrades'][0]['useridnumber']);
-    
-    // Get course info
-    $course_info = srl_fetch_course_details($moodle_endpoint, $token, $course_id);
-    
-    // Get forum announcements
-    $announcements = srl_fetch_announcements($moodle_endpoint, $token, $course_id);
-    
-    // Get teacher and principal
-    $staff = srl_fetch_staff($moodle_endpoint, $token, $course_id);
-    
-    // Generate PDF (this will handle its own output buffering)
+    while (ob_get_level()) ob_end_clean();
+
+    $endpoint = srl_moodle_endpoint();
+    $token = srl_moodle_token();
+    if (empty($token)) wp_die('Moodle API token not configured.');
+
+    $grades_data = srl_fetch_grades($endpoint, $token, $student_id, $course_id);
+    if (!$grades_data || empty($grades_data['usergrades'][0])) wp_die('Unable to fetch grades.');
+
+    $student_data  = srl_fetch_student_details($endpoint, $token, $grades_data['usergrades'][0]['useridnumber']);
+    $course_info   = srl_fetch_course_details($endpoint, $token, $course_id);
+    $announcements = srl_fetch_announcements($endpoint, $token, $course_id);
+    $staff         = srl_fetch_staff($endpoint, $token, $course_id);
+
     $pdf_generator = new SRL_PDF_Generator();
     $pdf_generator->generate_report_card([
         'grades_data' => $grades_data,
         'student_data' => $student_data,
         'course_info' => $course_info,
         'announcements' => $announcements,
-        'staff' => $staff
+        'staff' => $staff,
     ]);
 }
 
-/**
- * Shortcode: [student_lookup_form]
- */
 function srl_student_lookup_form() {
     ob_start();
     srl_add_custom_styles();
@@ -89,17 +66,17 @@ function srl_student_lookup_form() {
         <form method="post" class="srl-form">
             <h2>Student Result Lookup</h2>
             <p class="srl-subtitle">Enter student details to view results</p>
-            
+
             <div class="srl-form-group">
                 <label>Fullname</label>
                 <input type="text" name="srl_fullname" required placeholder="Enter fullname">
             </div>
-            
+
             <div class="srl-form-group">
                 <label>Access Code</label>
                 <input type="text" name="srl_access_code" required placeholder="Enter access code">
             </div>
-            
+
             <div class="srl-form-group">
                 <button type="submit" name="srl_submit" class="srl-btn">Check Result</button>
             </div>
@@ -108,14 +85,10 @@ function srl_student_lookup_form() {
     <?php
 
     srl_handle_form_submission();
-
     return ob_get_clean();
 }
 add_shortcode('student_lookup_form', 'srl_student_lookup_form');
 
-/**
- * Add custom styles
- */
 function srl_add_custom_styles() {
     ?>
     <style>
@@ -412,769 +385,78 @@ function srl_add_custom_styles() {
 }
 
 
-/**
- * Handle form submission
- */
+
+
 function srl_handle_form_submission() {
     if (!isset($_POST['srl_submit']) && !isset($_POST['srl_fetch_grades'])) return;
 
-    $moodle_endpoint = 'https://learn.petrachristianacademy.com/webservice/rest/server.php';
-    $token = defined('MOODLE_API_TOKEN') ? MOODLE_API_TOKEN : '';
+    $endpoint = srl_moodle_endpoint();
+    $token = srl_moodle_token();
+
+    if (empty($token)) {
+        echo '<div class="srl-error">Moodle API token not configured.</div>';
+        return;
+    }
 
     if (isset($_POST['srl_submit'])) {
-        $fullname    = sanitize_text_field($_POST['srl_fullname'] ?? '');
+        $fullname = sanitize_text_field($_POST['srl_fullname'] ?? '');
         $access_code = sanitize_text_field($_POST['srl_access_code'] ?? '');
 
-        // --- Student lookup helper ---
-        $lookup_user = function($idnumber) use ($token, $moodle_endpoint) {
-            $user_params = [
-                'wstoken'            => $token,
-                'wsfunction'         => 'core_user_get_users',
-                'moodlewsrestformat' => 'json',
-                'criteria[0][key]'   => 'idnumber',
-                'criteria[0][value]' => $idnumber,
-            ];
-            $response = wp_remote_get($moodle_endpoint . '?' . http_build_query($user_params));
-            if (is_wp_error($response)) return null;
-            $data = json_decode(wp_remote_retrieve_body($response), true);
-            return $data['users'][0] ?? null;
-        };
-
-        // First try the plain access code
-        $student = $lookup_user($access_code);
-
-        // If not found, try with -DEBT suffix
-        if (!$student) {
-            $student = $lookup_user($access_code . '-DEBT');
-        }
+        $student = SRL_Moodle_API::fetch_user_by_idnumber($endpoint, $token, $access_code);
+        if (!$student) $student = SRL_Moodle_API::fetch_user_by_idnumber($endpoint, $token, $access_code . '-DEBT');
 
         if (!$student) {
             echo '<div class="srl-error">No student found. Please check the access code.</div>';
             return;
         }
 
-        // Verify fullname
         if (strcasecmp($student['fullname'], $fullname) !== 0) {
             echo '<div class="srl-error">Details do not match our records.</div>';
             return;
         }
 
-        // ������ Check debt against what Moodle actually has on record, not what the student typed
         if (str_ends_with($student['idnumber'], '-DEBT')) {
-            echo '<div class="srl-container">';
-            echo '<div class="srl-error">You have outstanding fees. Please clear all debts with the school management to view your results.</div>';
-            echo '</div>';
+            echo '<div class="srl-container"><div class="srl-error">You have outstanding fees. Please clear all debts with the school management to view your results.</div></div>';
             return;
         }
 
-        // Fetch courses
-        $course_params = [
-            'wstoken'            => $token,
-            'wsfunction'         => 'core_enrol_get_users_courses',
-            'moodlewsrestformat' => 'json',
-            'userid'             => $student['id'],
-        ];
-        $course_response = wp_remote_get($moodle_endpoint . '?' . http_build_query($course_params));
-
-        if (is_wp_error($course_response)) {
+        $courses = SRL_Moodle_API::fetch_user_courses($endpoint, $token, $student['id']);
+        if ($courses === null) {
             echo '<div class="srl-error">Unable to fetch courses.</div>';
             return;
         }
-
-        $courses = json_decode(wp_remote_retrieve_body($course_response), true);
 
         if (empty($courses)) {
             echo '<div class="srl-error">No courses found for this student.</div>';
             return;
         }
 
-        // Multiple courses → show dropdown
         if (count($courses) > 1) {
             echo '<div class="srl-container">';
             echo '<form method="post" class="srl-form">';
             echo '<div class="srl-success">Student found: ' . esc_html($student['firstname'] . ' ' . $student['lastname']) . '</div>';
-            echo '<input type="hidden" name="srl_student_id"  value="' . esc_attr($student['id']) . '">';
-            echo '<input type="hidden" name="srl_fullname"    value="' . esc_attr($fullname) . '">';
+            echo '<input type="hidden" name="srl_student_id" value="' . esc_attr($student['id']) . '">';
+            echo '<input type="hidden" name="srl_fullname" value="' . esc_attr($fullname) . '">';
             echo '<input type="hidden" name="srl_access_code" value="' . esc_attr($access_code) . '">';
             echo '<div class="srl-form-group">';
             echo '<label>Select Term/Session:</label>';
             echo '<select name="srl_course_id">';
-            foreach ($courses as $c) {
-                echo '<option value="' . esc_attr($c['id']) . '">' . esc_html($c['fullname']) . '</option>';
+            foreach ($courses as $course) {
+                echo '<option value="' . esc_attr($course['id']) . '">' . esc_html($course['fullname']) . '</option>';
             }
             echo '</select></div>';
             echo '<div class="srl-form-group"><button type="submit" name="srl_fetch_grades" class="srl-btn">View Grades</button></div>';
             echo '</form></div>';
             return;
-        } else {
-            // Only one course → auto-fetch grades
-            srl_display_grades($token, $moodle_endpoint, $student['id'], $courses[0]['id']);
-            return;
         }
+
+        srl_display_grades($token, $endpoint, $student['id'], $courses[0]['id']);
+        return;
     }
 
-    // Fetch grades if requested (from dropdown selection)
     if (isset($_POST['srl_fetch_grades'])) {
         $student_id = sanitize_text_field($_POST['srl_student_id'] ?? '');
-        $course_id  = sanitize_text_field($_POST['srl_course_id'] ?? '');
-
-        srl_display_grades($token, $moodle_endpoint, $student_id, $course_id);
+        $course_id = sanitize_text_field($_POST['srl_course_id'] ?? '');
+        srl_display_grades($token, $endpoint, $student_id, $course_id);
     }
-}
-
-
-
-/**
- * Display grades for a student in a course
- */
-function srl_display_grades($token, $moodle_endpoint, $student_id, $course_id) {
-    $grades_data = srl_fetch_grades($moodle_endpoint, $token, $student_id, $course_id);
-    if (!$grades_data) {
-        echo '<div class="srl-error">Unable to fetch grades.</div>';
-        return;
-    }
- 
-    $usergrade    = $grades_data['usergrades'][0];
-    $student_data = srl_fetch_student_details($moodle_endpoint, $token, $usergrade['useridnumber']);
-    $course_info  = srl_fetch_course_details($moodle_endpoint, $token, $course_id);
- 
-    if (empty($course_info['course_complete'])) {
-        echo '<div class="srl-container"><div class="srl-error">Exam results are not ready yet. Please check back later.</div></div>';
-        return;
-    }
- 
-    $announcements  = srl_fetch_announcements($moodle_endpoint, $token, $course_id);
-    $is_third_term  = ($course_info['term'] === '3rd Term');
-    $organized      = srl_organize_grade_items($usergrade['gradeitems'], $is_third_term);
- 
-    echo '<div class="srl-container">';
- 
-    // PDF download button
-    $pdf_url = add_query_arg([
-        'srl_download_pdf' => '1',
-        'student_id'       => (int)$usergrade['userid'],
-        'course_id'        => (int)$usergrade['courseid'],
-        'srl_nonce'        => wp_create_nonce('srl_pdf_download'),
-    ], home_url());
- 
-    echo '<a href="' . esc_url($pdf_url) . '" class="srl-btn" style="display:inline-block;text-decoration:none;margin-bottom:15px;">Download Report Card (PDF)</a>';
-    echo '<button onclick="window.print()" class="srl-print-btn">Print Report Card</button>';
- 
-    echo '<div class="srl-report-card">';
- 
-    // Header
-    echo '<div class="srl-header">';
-    echo '<h2>Petra Christian Academy</h2>';
-    echo '<p style="font-style:italic;color:#666;margin:5px 0;">Righteousness and Excellence</p>';
-    echo '<div class="student-name">' . esc_html($usergrade['userfullname']) . '</div>';
-    echo '</div>';
- 
-    // Student info
-    echo '<div class="srl-info-grid">';
-    echo '<div class="srl-info-item"><strong>Sex:</strong> '     . esc_html($student_data['sex'] ?? 'N/A') . '</div>';
-    echo '<div class="srl-info-item"><strong>Class:</strong> '   . esc_html($course_info['class'])          . '</div>';
-    echo '<div class="srl-info-item"><strong>Term:</strong> '    . esc_html($course_info['term'])           . '</div>';
-    echo '<div class="srl-info-item"><strong>Session:</strong> ' . esc_html($course_info['session'])        . '</div>';
-    echo '</div>';
- 
-    // ----------------------------------------------------------------
-    // PERFORMANCE SUMMARY
-    // ----------------------------------------------------------------
-    if ($organized['course_total']) {
-        $total    = $organized['course_total'];
-        $position = srl_format_position($total['rank'] ?? null) . ' out of ' . ($total['numusers'] ?? 'N/A');
- 
-        echo '<div class="srl-section-title">Performance Summary</div>';
-        echo '<div class="srl-performance-summary">';
- 
-        // Standard 4 boxes
-        foreach ([
-            ['Position',          $position],
-            ['Total Obtained',    $total['gradeformatted']],
-            ['Total Obtainable',  $total['grademax']],
-            ['Percentage',        $total['percentageformatted']],
-        ] as [$label, $value]) {
-            echo '<div class="srl-stat-card">';
-            echo '<div class="srl-stat-label">' . ($is_third_term ? $label . ' (3rd)' : $label) . '</div>';
-            echo '<div class="srl-stat-value">' . esc_html($value) . '</div>';
-            echo '</div>';
-        }
- 
-        // 3rd term: add cumulative boxes
-        if ($is_third_term) {
-            $cum = srl_calc_overall_cumulative($organized['subjects']);
-            echo '<div class="srl-stat-card">';
-            echo '<div class="srl-stat-label">Cumulative Total</div>';
-            echo '<div class="srl-stat-value">' . esc_html($cum['total']) . '</div>';
-            echo '</div>';
-            echo '<div class="srl-stat-card">';
-            echo '<div class="srl-stat-label">Cumulative Average</div>';
-            echo '<div class="srl-stat-value">' . esc_html($cum['avg']) . '</div>';
-            echo '</div>';
-        }
- 
-        echo '</div>'; // .srl-performance-summary
-    }
- 
-    // ----------------------------------------------------------------
-    // SUBJECT PERFORMANCE
-    // ----------------------------------------------------------------
-    if (!empty($organized['subjects'])) {
-        echo '<div class="srl-section-title">Subject Performance</div>';
- 
-        if ($is_third_term) {
-            srl_render_third_term_subject_table($organized['subjects']);
-        } else {
-            srl_render_standard_subject_table($organized['subjects']);
-        }
-    }
- 
-    // ----------------------------------------------------------------
-    // ATTENDANCE
-    // ----------------------------------------------------------------
-    if ($organized['attendance']['opened'] || $organized['attendance']['present']) {
-        echo '<div class="srl-section-title">Attendance Summary</div>';
-        echo '<div class="srl-attendance-grid">';
-        echo '<div class="srl-attendance-item"><strong>' . esc_html($announcements['days_opened'] ?? 'N/A') . '</strong><span>Days School Opened</span></div>';
-        echo '<div class="srl-attendance-item"><strong>' . esc_html($organized['attendance']['present'] ?? 'N/A') . '</strong><span>Days Present</span></div>';
-        echo '</div>';
-    }
- 
-    // ----------------------------------------------------------------
-    // REMARKS
-    // ----------------------------------------------------------------
-    if ($organized['remarks']['teacher'] || $organized['remarks']['principal']) {
-        echo '<div class="srl-section-title">Remarks</div>';
-        echo '<div class="srl-remarks-grid">';
-        if ($organized['remarks']['teacher']) {
-            echo '<div class="srl-remark-box"><h4>Class Teacher\'s Remark</h4><p>' . wp_kses_post($organized['remarks']['teacher']) . '</p></div>';
-        }
-        if ($organized['remarks']['principal']) {
-            echo '<div class="srl-remark-box"><h4>Principal\'s/Vice-Principal\'s Remarks</h4><p>' . wp_kses_post($organized['remarks']['principal']) . '</p></div>';
-        }
-        echo '</div>';
-    }
- 
-    // ----------------------------------------------------------------
-    // ANNOUNCEMENTS
-    // ----------------------------------------------------------------
-    if (!empty($announcements)) {
-        echo '<div class="srl-section-title">Announcements</div>';
-        if (!empty($announcements['next_term'])) echo '<p><strong>Next Term Begins:</strong> ' . esc_html($announcements['next_term']) . '</p>';
-        if (!empty($announcements['fees']))      echo '<p><strong>Fees for Next Term:</strong> ' . esc_html($announcements['fees']) . '</p>';
-        if (!empty($announcements['general']))   echo '<p><strong>Announcement:</strong> ' . wp_kses_post($announcements['general']) . '</p>';
-    }
- 
-    echo '</div>'; // .srl-report-card
-    echo '</div>'; // .srl-container
-}
-
-
-// ============================================================
-// NEW HELPER — 3rd term subject table for the web view
-// ============================================================
-
-function srl_render_third_term_subject_table($subjects) {
-    echo '<div style="overflow-x:auto;">';
-    echo '<table class="srl-grades-table" style="width:100%;border-collapse:collapse;font-size:13px;">';
-    echo '<thead><tr style="background:#34495e;color:#fff;text-align:center;">
-        <th style="padding:6px;text-align:left;border:1px solid #ccc;">Subject</th>
-        <th style="padding:6px;border:1px solid #ccc;">CA (20)</th>
-        <th style="padding:6px;border:1px solid #ccc;">1st Exam (30)</th>
-        <th style="padding:6px;border:1px solid #ccc;">2nd Exam (50)</th>
-        <th style="padding:6px;border:1px solid #ccc;">3rd Term Total (100)</th>
-        <th style="padding:6px;border:1px solid #ccc;">Grade (3rd)</th>
-        <th style="padding:6px;border:1px solid #ccc;">Position (3rd)</th>
-        <th style="padding:6px;border:1px solid #ccc;">1st Term (100)</th>
-        <th style="padding:6px;border:1px solid #ccc;">2nd Term (100)</th>
-        <th style="padding:6px;border:1px solid #ccc;">Cum. Total</th>
-        <th style="padding:6px;border:1px solid #ccc;">Cum. Avg</th>
-    </tr></thead><tbody>';
- 
-    $row = 0;
-    foreach ($subjects as $subject_name => $subject_data) {
-        $row++;
-        $bg         = ($row % 2 === 0) ? '#f9f9f9' : '#ffffff';
-        $category   = $subject_data['category'];
-        $components = $subject_data['components'];
- 
-        $ca = $exam1 = $exam2 = $term1 = $term2 = '-';
- 
-        foreach ($components as $comp) {
-            $type = srl_get_component_type_third($comp['itemname'], $subject_name);
-            switch ($type) {
-                case 'CA':       $ca    = $comp['gradeformatted']; break;
-                case '1ST_EXAM': $exam1 = $comp['gradeformatted']; break;
-                case '2ND_EXAM': $exam2 = $comp['gradeformatted']; break;
-                case '1ST_TERM': $term1 = $comp['gradeformatted']; break;
-                case '2ND_TERM': $term2 = $comp['gradeformatted']; break;
-            }
-        }
- 
-        $third_total = $category['gradeformatted'];
-        $grade_3rd   = $category['lettergradeformatted'];
-        $pos_3rd     = srl_format_position($category['rank'] ?? null);
-        $cum         = srl_calc_cumulative($term1, $term2, $third_total);
- 
-        echo '<tr style="background:' . $bg . ';text-align:center;">
-            <td style="padding:5px;text-align:left;border:1px solid #ddd;">' . esc_html($subject_name)  . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                 . esc_html($ca)            . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                 . esc_html($exam1)         . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                 . esc_html($exam2)         . '</td>
-            <td style="padding:5px;border:1px solid #ddd;font-weight:bold;">' . esc_html($third_total) . '</td>
-            <td style="padding:5px;border:1px solid #ddd;font-weight:bold;">' . esc_html($grade_3rd)   . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                 . esc_html($pos_3rd)       . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                 . esc_html($term1)         . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                 . esc_html($term2)         . '</td>
-            <td style="padding:5px;border:1px solid #ddd;font-weight:bold;">' . esc_html($cum['total']) . '</td>
-            <td style="padding:5px;border:1px solid #ddd;font-weight:bold;">' . esc_html($cum['avg'])   . '</td>
-        </tr>';
-    }
- 
-    echo '</tbody></table></div>';
-}
-
- 
-// ============================================================
-// NEW HELPER — standard subject table for the web view (extracted from old srl_display_grades)
-// ============================================================
- 
-function srl_render_standard_subject_table($subjects) {
-    foreach ($subjects as $subject_name => $subject_data) {
-        $category   = $subject_data['category'];
-        $components = $subject_data['components'];
- 
-        $ca = $exam1 = $exam2 = '-';
-        foreach ($components as $comp) {
-            $type = srl_get_component_type($comp['itemname']);
-            if ($type === 'CA')       $ca    = $comp['gradeformatted'];
-            if ($type === '1ST_EXAM') $exam1 = $comp['gradeformatted'];
-            if ($type === '2ND_EXAM') $exam2 = $comp['gradeformatted'];
-        }
- 
-        $comp_name_clean = str_replace($subject_name . ' - ', '', $subject_name);
- 
-        echo '<div class="srl-subject-card">';
-        echo '<div class="srl-subject-header">';
-        echo '<span class="srl-subject-name">' . esc_html($subject_name) . '</span>';
-        echo '<span class="srl-subject-total">Total: ' . esc_html($category['gradeformatted']) . '/' . esc_html($category['grademax'])
-            . ' | Grade: ' . esc_html($category['lettergradeformatted'])
-            . ' | Position: ' . esc_html(srl_format_position($category['rank'] ?? null)) . ' out of ' . esc_html($category['numusers'] ?? 'N/A') . '</span>';
-        echo '</div>';
- 
-        echo '<div class="srl-subject-breakdown">';
-        echo '<div class="srl-breakdown-item"><strong>CA:</strong> '       . esc_html($ca)    . '/20</div>';
-        echo '<div class="srl-breakdown-item"><strong>1st Exam:</strong> ' . esc_html($exam1) . '/30</div>';
-        echo '<div class="srl-breakdown-item"><strong>2nd Exam:</strong> ' . esc_html($exam2) . '/50</div>';
-        echo '</div>';
- 
-        echo '</div>';
-    }
-}
- 
- 
-// ============================================================
-// NEW HELPER — component type matcher for 3rd term items
-// ============================================================
- 
-function srl_get_component_type_third($itemname, $subject_name) {
-    $suffix = $itemname;
-    if (stripos($itemname, $subject_name) === 0) {
-        $suffix = trim(substr($itemname, strlen($subject_name)));
-        $suffix = ltrim($suffix, ' -');
-    }
- 
-    if (preg_match('/^CA$/i', $suffix))                   return 'CA';
-    if (preg_match('/^1st\s+Exam$/i', $suffix))           return '1ST_EXAM';
-    if (preg_match('/^2nd\s+Exam$/i', $suffix))           return '2ND_EXAM';
-    if (preg_match('/^1st\s+Term\s+Total$/i', $suffix))   return '1ST_TERM';
-    if (preg_match('/^2nd\s+Term\s+Total$/i', $suffix))   return '2ND_TERM';
- 
-    return 'UNKNOWN';
-}
-
-// ============================================================
-// Keep this existing helper — needed by srl_render_standard_subject_table
-// (already in your file, listed here for completeness)
-// ============================================================
- 
-function srl_get_component_type($itemname) {
-    if (preg_match('/\s-\s*CA\s*$/i', $itemname) || preg_match('/\s-\s*CA\s*\(/i', $itemname)) return 'CA';
-    if (stripos($itemname, '1st Exam') !== false) return '1ST_EXAM';
-    if (stripos($itemname, '2nd Exam') !== false) return '2ND_EXAM';
-    return 'UNKNOWN';
-}
- 
- 
-// ============================================================
-// NEW HELPER — per-subject cumulative (shared by web + PDF)
-// ============================================================
- 
-function srl_calc_cumulative($term1, $term2, $third_total) {
-    $values = [];
-    foreach ([$term1, $term2, $third_total] as $v) {
-        $clean = trim(str_replace(',', '.', $v));
-        if ($clean !== '-' && $clean !== 'N/A' && is_numeric($clean)) {
-            $values[] = (float)$clean;
-        }
-    }
- 
-    if (empty($values)) {
-        return ['total' => 'N/A', 'avg' => 'N/A'];
-    }
- 
-    return [
-        'total' => number_format(array_sum($values), 2),
-        'avg'   => number_format(array_sum($values) / count($values), 2),
-    ];
-}
- 
- 
-// ============================================================
-// NEW HELPER — overall cumulative across all subjects (for performance summary)
-// ============================================================
- 
-function srl_calc_overall_cumulative($subjects) {
-    $all_totals = [];
-    $all_avgs   = [];
- 
-    foreach ($subjects as $subject_name => $subject_data) {
-        $components = $subject_data['components'];
-        $term1 = $term2 = '-';
- 
-        foreach ($components as $comp) {
-            $type = srl_get_component_type_third($comp['itemname'], $subject_name);
-            if ($type === '1ST_TERM') $term1 = $comp['gradeformatted'];
-            if ($type === '2ND_TERM') $term2 = $comp['gradeformatted'];
-        }
- 
-        $third_total = $subject_data['category']['gradeformatted'];
-        $cum = srl_calc_cumulative($term1, $term2, $third_total);
- 
-        if ($cum['total'] !== 'N/A') $all_totals[] = (float)str_replace(',', '.', $cum['total']);
-        if ($cum['avg']   !== 'N/A') $all_avgs[]   = (float)str_replace(',', '.', $cum['avg']);
-    }
- 
-    return [
-        'total' => empty($all_totals) ? 'N/A' : number_format(array_sum($all_totals), 2),
-        'avg'   => empty($all_avgs)   ? 'N/A' : number_format(array_sum($all_avgs) / count($all_avgs), 2),
-    ];
-}
-
-/**
- * Fetch grades from Moodle
- */
-function srl_fetch_grades($endpoint, $token, $student_id, $course_id) {
-    $params = [
-        'wstoken' => $token,
-        'wsfunction' => 'gradereport_user_get_grade_items',
-        'moodlewsrestformat' => 'json',
-        'userid' => $student_id,
-        'courseid' => $course_id,
-    ];
-
-    $response = wp_remote_get($endpoint . '?' . http_build_query($params));
-    
-    if (is_wp_error($response)) {
-        return null;
-    }
-
-    $data = json_decode(wp_remote_retrieve_body($response), true);
-    
-    if (empty($data['usergrades'])) {
-        return null;
-    }
-    
-    return $data;
-}
-
-/**
- * Fetch student details (including sex)
- */
-function srl_fetch_student_details($endpoint, $token, $idnumber) {
-    $params = [
-        'wstoken' => $token,
-        'wsfunction' => 'core_user_get_users',
-        'moodlewsrestformat' => 'json',
-        'criteria[0][key]' => 'idnumber',
-        'criteria[0][value]' => $idnumber,
-    ];
-
-    $response = wp_remote_get($endpoint . '?' . http_build_query($params));
-    
-    if (is_wp_error($response)) {
-        return ['sex' => 'N/A'];
-    }
-
-    $data = json_decode(wp_remote_retrieve_body($response), true);
-    
-    if (empty($data['users'][0])) {
-        return ['sex' => 'N/A'];
-    }
-    
-    $user = $data['users'][0];
-    $sex = 'N/A';
-    
-    if (!empty($user['customfields'])) {
-        foreach ($user['customfields'] as $field) {
-            if ($field['shortname'] === 'Sex') {
-                $sex = $field['value'];
-                break;
-            }
-        }
-    }
-    
-    return ['sex' => $sex];
-}
-
-/**
- * Fetch course details
- */
-function srl_fetch_course_details($endpoint, $token, $course_id) {
-    $params = [
-        'wstoken' => $token,
-        'wsfunction' => 'core_course_get_courses',
-        'moodlewsrestformat' => 'json',
-        'options[ids][0]' => $course_id,
-    ];
-
-    $response = wp_remote_get($endpoint . '?' . http_build_query($params));
-    
-    if (is_wp_error($response)) {
-        return ['class' => 'N/A', 'term' => 'N/A', 'session' => 'N/A', 'course_complete' => 0];
-    }
-
-    $data = json_decode(wp_remote_retrieve_body($response), true);
-    
-    if (empty($data[0])) {
-        return ['class' => 'N/A', 'term' => 'N/A', 'session' => 'N/A', 'course_complete' => 0];
-    }
-
-    $course = $data[0];
-    $parsed = srl_parse_course_info($course['shortname'] ?? '');
-
-    $course_complete = 0;
-
-    if (!empty($course['customfields'])) {
-        foreach ($course['customfields'] as $field) {
-            if ($field['shortname'] === 'course_complete') {
-                $course_complete = (int)($field['valueraw'] ?? 0);
-                break;
-            }
-        }
-    }
-
-    $parsed['course_complete'] = $course_complete;
-
-    return $parsed;
-}
-
-/**
- * Parse course info (class, term, session)
- */
-function srl_parse_course_info($course_shortname) {
-    // Expected format: SS1-2nd Term-2025/2026
-    $parts = explode('-', $course_shortname);
-    
-    return [
-        'class' => trim($parts[0] ?? 'N/A'),
-        'term' => trim($parts[1] ?? 'N/A'),
-        'session' => trim($parts[2] ?? 'N/A'),
-    ];
-}
-
-/**
- * Fetch announcements from forum
- */
-function srl_fetch_announcements($endpoint, $token, $course_id) {
-    // Get forums
-    $forum_params = [
-        'wstoken' => $token,
-        'wsfunction' => 'mod_forum_get_forums_by_courses',
-        'moodlewsrestformat' => 'json',
-        'courseids[0]' => $course_id,
-    ];
-
-    $forum_response = wp_remote_get($endpoint . '?' . http_build_query($forum_params));
-    
-    if (is_wp_error($forum_response)) {
-        return [];
-    }
-
-    $forums = json_decode(wp_remote_retrieve_body($forum_response), true);
-    
-    // Find the Announcements forum
-    $forum_id = null;
-    foreach ($forums as $forum) {
-        if ($forum['type'] === 'news' && $forum['name'] === 'Announcements') {
-            $forum_id = $forum['id'];
-            break;
-        }
-    }
-    
-    if (!$forum_id) {
-        return [];
-    }
-    
-    // Get discussions
-    $discussion_params = [
-        'wstoken' => $token,
-        'wsfunction' => 'mod_forum_get_forum_discussions',
-        'moodlewsrestformat' => 'json',
-        'forumid' => $forum_id,
-    ];
-
-    $discussion_response = wp_remote_get($endpoint . '?' . http_build_query($discussion_params));
-    
-    if (is_wp_error($discussion_response)) {
-        return [];
-    }
-
-    $data = json_decode(wp_remote_retrieve_body($discussion_response), true);
-    
-    if (empty($data['discussions'])) {
-        return [];
-    }
-    
-    $announcements = [
-        'days_opened' => null,
-        'next_term' => null,
-        'fees' => null,
-        'general' => null,
-    ];
-    
-    foreach ($data['discussions'] as $discussion) {
-        $subject = strtolower($discussion['subject']);
-        $message = strip_tags($discussion['message']);
-        
-        if (stripos($subject, 'days school opened') !== false) {
-            $announcements['days_opened'] = $message;
-        } elseif (stripos($subject, 'next term') !== false && stripos($subject, 'resumption') !== false) {
-            $announcements['next_term'] = $message;
-        } elseif (stripos($subject, 'next term') !== false && stripos($subject, 'fees') !== false) {
-            $announcements['fees'] = $message;
-        } elseif (stripos($subject, 'announcement') !== false) {
-            $announcements['general'] = $message;
-        }
-    }
-    
-    return $announcements;
-}
-
-/**
- * Fetch staff (teacher and principal)
- */
-function srl_fetch_staff($endpoint, $token, $course_id) {
-    $params = [
-        'wstoken' => $token,
-        'wsfunction' => 'core_enrol_get_enrolled_users',
-        'moodlewsrestformat' => 'json',
-        'courseid' => $course_id,
-    ];
-
-    $response = wp_remote_get($endpoint . '?' . http_build_query($params));
-    
-    if (is_wp_error($response)) {
-        return ['teacher' => 'N/A', 'principal' => 'N/A'];
-    }
-
-    $users = json_decode(wp_remote_retrieve_body($response), true);
-    
-    $staff = ['teacher' => 'N/A', 'principal' => 'N/A'];
-    
-    foreach ($users as $user) {
-        if (!empty($user['roles'])) {
-            foreach ($user['roles'] as $role) {
-                if ($role['shortname'] === 'editingteacher') {
-                    $staff['teacher'] = $user['fullname'];
-                } elseif ($role['shortname'] === 'principal') {
-                    $staff['principal'] = $user['fullname'];
-                }
-            }
-        }
-    }
-    
-    return $staff;
-}
-
-/**
- * Organize grade items by subject categories
- */
-function srl_organize_grade_items($gradeitems, $is_third_term = false) {
-    $subjects    = [];
-    $course_total = null;
-    $attendance  = ['opened' => null, 'present' => null];
-    $remarks     = ['teacher' => '', 'principal' => ''];
-    $categories  = [];
-    $components_by_category = [];
- 
-    foreach ($gradeitems as $item) {
-        if ($item['itemtype'] === 'course') {
-            $course_total = $item;
- 
-        } elseif ($item['itemtype'] === 'category') {
-            $categories[$item['iteminstance']] = $item;
- 
-        } elseif ($item['itemtype'] === 'mod') {
-            if (!empty($item['categoryid'])) {
-                $components_by_category[$item['categoryid']][] = $item;
-            }
- 
-        } elseif ($item['itemtype'] === 'manual') {
-            $name = $item['itemname'] ?? '';
- 
-            if (stripos($name, 'Days Present') !== false) {
-                $attendance['present'] = $item['gradeformatted'];
- 
-            } elseif (stripos($name, 'Teacher') !== false && stripos($name, 'Remark') !== false) {
-                $remarks['teacher'] = $item['feedback'];
- 
-            } elseif (stripos($name, 'Principal') !== false && stripos($name, 'Remark') !== false) {
-                $remarks['principal'] = $item['feedback'];
- 
-            } elseif ($is_third_term && (
-                preg_match('/\s*-\s*1st\s+Term\s+Total\s*$/i', $name) ||
-                preg_match('/\s*-\s*2nd\s+Term\s+Total\s*$/i', $name)
-            )) {
-                // Prior-term totals: attach to subject category via categoryid
-                if (!empty($item['categoryid'])) {
-                    $components_by_category[$item['categoryid']][] = $item;
-                }
-            }
-        }
-    }
- 
-    foreach ($categories as $cat_id => $category) {
-        $subjects[$category['itemname']] = [
-            'category'   => $category,
-            'components' => $components_by_category[$cat_id] ?? [],
-        ];
-    }
- 
-    return [
-        'subjects'     => $subjects,
-        'course_total' => $course_total,
-        'attendance'   => $attendance,
-        'remarks'      => $remarks,
-    ];
-}
-
-/**
- * Format position with ordinal suffix (1st, 2nd, 3rd, etc.)
- */
-function srl_format_position($number) {
-    if (!is_numeric($number) || $number <= 0) return 'N/A';
-    
-    $number = (int)$number;
-    $suffix = 'th';
-    
-    if (!in_array(($number % 100), [11, 12, 13])) {
-        switch ($number % 10) {
-            case 1: $suffix = 'st'; break;
-            case 2: $suffix = 'nd'; break;
-            case 3: $suffix = 'rd'; break;
-        }
-    }
-    
-    return $number . $suffix;
 }

@@ -6,8 +6,6 @@
 
 if (!defined('ABSPATH')) exit;
 
-require_once plugin_dir_path(__FILE__) . 'class-grade-organizer.php';
-
 class SRL_PDF_Generator {
 
     private $logo_path;
@@ -96,7 +94,7 @@ class SRL_PDF_Generator {
      * Matches: JSS3, SS3, SS3 Art, SS3 Science, etc.
      */
     private function is_exit_class($class) {
-        return SRL_Grade_Organizer::is_exit_class($class);
+        return (bool) preg_match('/^(JSS3|SS3)/i', trim($class));
     }
 
     // =========================================================================
@@ -104,7 +102,12 @@ class SRL_PDF_Generator {
     // =========================================================================
 
     private function derive_grade($average) {
-        return SRL_Grade_Organizer::derive_grade($average);
+        if (!is_numeric($average)) return '-';
+        $avg = (float) $average;
+        foreach ($this->grade_scale as $letter => $info) {
+            if ($avg >= $info['min'] && $avg <= $info['max']) return $letter;
+        }
+        return 'F';
     }
 
     // =========================================================================
@@ -127,7 +130,115 @@ class SRL_PDF_Generator {
      * (no sub-category), same as 1st/2nd term totals.
      */
     public function organize_grade_items($gradeitems) {
-        return SRL_Grade_Organizer::organize_grade_items($gradeitems);
+        $course_total    = null;
+        $attendance      = ['present' => null];
+        $remarks         = ['teacher' => '', 'principal' => ''];
+
+        // Keyed by iteminstance
+        $named_categories   = [];   // itemtype=category with itemname (subject name)
+        $unnamed_categories = [];   // itemtype=category with null/empty itemname (3rd term sub-cat)
+        $mods_by_category   = [];   // mods grouped by categoryid
+
+        foreach ($gradeitems as $item) {
+            switch ($item['itemtype']) {
+                case 'course':
+                    $course_total = $item;
+                    break;
+
+                case 'category':
+                    if (!empty($item['itemname'])) {
+                        $named_categories[$item['iteminstance']] = $item;
+                    } else {
+                        $unnamed_categories[$item['iteminstance']] = $item;
+                    }
+                    break;
+
+                case 'mod':
+                    $cid = $item['categoryid'] ?? null;
+                    if ($cid !== null) {
+                        $mods_by_category[$cid][] = $item;
+                    }
+                    break;
+
+                case 'manual':
+                    $name = $item['itemname'] ?? '';
+                    if (stripos($name, 'Days Present') !== false) {
+                        $attendance['present'] = $item['gradeformatted'];
+                    } elseif (stripos($name, 'Teacher') !== false && stripos($name, 'Remark') !== false) {
+                        $remarks['teacher'] = $item['feedback'];
+                    } elseif (stripos($name, 'Principal') !== false && stripos($name, 'Remark') !== false) {
+                        $remarks['principal'] = $item['feedback'];
+                    }
+                    break;
+            }
+        }
+
+        // Build subject list from named categories
+        // Named categories whose itemname matches "<Subject> - 3rd Term" are sub-categories,
+        // not top-level subjects — exclude them from the subject list.
+        $third_term_subcats = []; // instance => category item, keyed for quick lookup
+
+        foreach ($named_categories as $instance => $cat) {
+            if (preg_match('/\s*-\s*3rd\s+Term\s*$/i', $cat['itemname'])) {
+                $third_term_subcats[$instance] = $cat;
+            }
+        }
+
+        $subjects = [];
+
+        foreach ($named_categories as $instance => $cat) {
+            // Skip 3rd term sub-categories — they're children, not subjects
+            if (isset($third_term_subcats[$instance])) continue;
+
+            $subject_name = $cat['itemname'];
+
+            // Direct mod children of this category
+            $direct_mods = $mods_by_category[$instance] ?? [];
+
+            // Find 3rd term sub-category (named "Subject - 3rd Term") that belongs to this subject
+            $third_subcat      = null;
+            $third_subcat_mods = [];
+
+            foreach ($third_term_subcats as $sub_instance => $sub_cat) {
+                // Match by name prefix
+                $expected_prefix = $subject_name . ' - 3rd Term';
+                if (strcasecmp($sub_cat['itemname'], $expected_prefix) === 0) {
+                    $third_subcat      = $sub_cat;
+                    $third_subcat_mods = $mods_by_category[$sub_instance] ?? [];
+                    break;
+                }
+            }
+
+            // Also check unnamed sub-categories as fallback (legacy — before naming was enforced)
+            if ($third_subcat === null) {
+                foreach ($unnamed_categories as $sub_instance => $sub_cat) {
+                    // Unnamed sub-cats that have CA/Exam children belonging to this subject
+                    $sub_mods = $mods_by_category[$sub_instance] ?? [];
+                    foreach ($sub_mods as $mod) {
+                        if (stripos($mod['itemname'], $subject_name . ' - CA') === 0 ||
+                            stripos($mod['itemname'], $subject_name . ' - 1st Exam') === 0) {
+                            $third_subcat      = $sub_cat;
+                            $third_subcat_mods = $sub_mods;
+                            break 2;
+                        }
+                    }
+                }
+            }
+
+            $subjects[$subject_name] = [
+                'category'          => $cat,           // parent — grademax:300, rank=cum position
+                'direct_mods'       => $direct_mods,   // 1st/2nd term totals + JSS3 3rd term total
+                'third_subcat'      => $third_subcat,  // named sub-cat (grademax:100, rank=3rd pos)
+                'third_subcat_mods' => $third_subcat_mods, // CA, 1st Exam, 2nd Exam
+            ];
+        }
+
+        return [
+            'subjects'     => $subjects,
+            'course_total' => $course_total,
+            'attendance'   => $attendance,
+            'remarks'      => $remarks,
+        ];
     }
 
     // =========================================================================
@@ -139,14 +250,44 @@ class SRL_PDF_Generator {
      * 3rd Term Total.
      */
     private function extract_term_totals($direct_mods, $subject_name) {
-        return SRL_Grade_Organizer::extract_term_totals($direct_mods);
+        $result = [
+            'term1' => ['formatted' => '-', 'graderaw' => null],
+            'term2' => ['formatted' => '-', 'graderaw' => null],
+            'term3' => ['formatted' => '-', 'graderaw' => null], // JSS3/SS3 only
+        ];
+
+        foreach ($direct_mods as $mod) {
+            $name = $mod['itemname'] ?? '';
+            if (preg_match('/\s*-\s*1st\s+Term\s+Total\s*$/i', $name)) {
+                $result['term1'] = ['formatted' => $mod['gradeformatted'], 'graderaw' => $mod['graderaw']];
+            } elseif (preg_match('/\s*-\s*2nd\s+Term\s+Total\s*$/i', $name)) {
+                $result['term2'] = ['formatted' => $mod['gradeformatted'], 'graderaw' => $mod['graderaw']];
+            } elseif (preg_match('/\s*-\s*3rd\s+Term\s+Total\s*$/i', $name)) {
+                $result['term3'] = ['formatted' => $mod['gradeformatted'], 'graderaw' => $mod['graderaw']];
+            }
+        }
+
+        return $result;
     }
 
     /**
      * From third_subcat_mods, extract CA, 1st Exam, 2nd Exam.
      */
     private function extract_third_term_components($third_subcat_mods) {
-        return SRL_Grade_Organizer::extract_third_term_components($third_subcat_mods);
+        $result = ['ca' => '-', 'exam1' => '-', 'exam2' => '-'];
+
+        foreach ($third_subcat_mods as $mod) {
+            $name = $mod['itemname'] ?? '';
+            if (preg_match('/\s*-\s*CA\s*$/i', $name)) {
+                $result['ca'] = $mod['gradeformatted'];
+            } elseif (preg_match('/\s*-\s*1st\s+Exam\s*$/i', $name)) {
+                $result['exam1'] = $mod['gradeformatted'];
+            } elseif (preg_match('/\s*-\s*2nd\s+Exam\s*$/i', $name)) {
+                $result['exam2'] = $mod['gradeformatted'];
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -155,7 +296,28 @@ class SRL_PDF_Generator {
      * Returns ['avg' => float|null, 'terms_sat' => int]
      */
     private function calc_cum_avg($term_scores, $third_subcat_graderaw) {
-        return SRL_Grade_Organizer::calc_cum_avg($term_scores, $third_subcat_graderaw);
+        // $term_scores = result of extract_term_totals()
+        // $third_subcat_graderaw = graderaw from the "- 3rd Term" sub-category (or term3 for exit classes)
+
+        $values     = [];
+        $terms_data = [
+            $term_scores['term1']['graderaw'],
+            $term_scores['term2']['graderaw'],
+            $third_subcat_graderaw,
+        ];
+
+        foreach ($terms_data as $raw) {
+            if ($raw !== null) {
+                $values[] = (float) $raw;
+            }
+        }
+
+        if (empty($values)) return ['avg' => null, 'terms_sat' => 0];
+
+        return [
+            'avg'       => array_sum($values) / count($values),
+            'terms_sat' => count($values),
+        ];
     }
 
     // =========================================================================
@@ -528,7 +690,35 @@ class SRL_PDF_Generator {
      * For exit classes the 3rd term sub-cat is null; we use term3 graderaw instead.
      */
     private function calc_overall_cumulative_summary($subjects) {
-        return SRL_Grade_Organizer::calc_overall_cumulative_summary($subjects);
+        $cum_totals = [];
+        $cum_avgs   = [];
+
+        foreach ($subjects as $subject_name => $subject_data) {
+            $terms      = $this->extract_term_totals($subject_data['direct_mods'], $subject_name);
+            $third_subcat = $subject_data['third_subcat'];
+
+            // For standard 3rd term, use sub-cat graderaw; for exit classes, use term3 graderaw
+            $third_graderaw = $third_subcat
+                ? ($third_subcat['graderaw'] ?? null)
+                : ($terms['term3']['graderaw'] ?? null);
+
+            $parent        = $subject_data['category'];
+            $cum_total_raw = $parent['graderaw'] ?? null;
+
+            if ($cum_total_raw !== null) {
+                $cum_totals[] = (float) $cum_total_raw;
+            }
+
+            $cum_avg_data = $this->calc_cum_avg($terms, $third_graderaw);
+            if ($cum_avg_data['avg'] !== null) {
+                $cum_avgs[] = $cum_avg_data['avg'];
+            }
+        }
+
+        return [
+            'total' => empty($cum_totals) ? '-' : number_format(array_sum($cum_totals), 2),
+            'avg'   => empty($cum_avgs)   ? '-' : number_format(array_sum($cum_avgs) / count($cum_avgs), 2),
+        ];
     }
 
     // =========================================================================
@@ -779,7 +969,17 @@ class SRL_PDF_Generator {
     }
 
     private function format_position($number) {
-        return SRL_Grade_Organizer::format_position($number);
+        if (!is_numeric($number) || $number <= 0) return 'N/A';
+        $number = (int) $number;
+        $suffix = 'th';
+        if (!in_array($number % 100, [11, 12, 13])) {
+            switch ($number % 10) {
+                case 1: $suffix = 'st'; break;
+                case 2: $suffix = 'nd'; break;
+                case 3: $suffix = 'rd'; break;
+            }
+        }
+        return $number . $suffix;
     }
 
     private function generate_filename($student_name) {
