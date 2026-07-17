@@ -37,7 +37,7 @@ public static function display_grades($token, $moodle_endpoint, $student_id, $co
     ], home_url());
  
     echo '<a href="' . esc_url($pdf_url) . '" class="srl-btn" style="display:inline-block;text-decoration:none;margin-bottom:15px;">Download Report Card (PDF)</a>';
-    echo '<button onclick="window.print()" class="srl-print-btn">Print Report Card</button>';
+    echo '<button onclick="srlPrintReport(' . esc_attr(wp_json_encode($usergrade['userfullname'])) . ')" class="srl-print-btn">Print Report Card</button>';
     echo '<div class="srl-report-card">';
  
     // Header
@@ -151,6 +151,19 @@ public static function display_grades($token, $moodle_endpoint, $student_id, $co
     }
  
     echo '</div>'; // .srl-report-card
+    echo '<script>
+    function srlPrintReport(studentName) {
+        var originalTitle = document.title;
+        var cleanName = String(studentName || "Student").replace(/[^A-Za-z0-9 _-]/g, "").trim().replace(/\s+/g, "_");
+        document.title = cleanName + "_Report_Card";
+        window.addEventListener("afterprint", function restoreSrlTitle() {
+            document.title = originalTitle;
+            window.removeEventListener("afterprint", restoreSrlTitle);
+        }, { once: true });
+        window.print();
+        setTimeout(function() { document.title = originalTitle; }, 1500);
+    }
+    </script>';
     echo '</div>'; // .srl-container
 }
 

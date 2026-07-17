@@ -172,30 +172,131 @@ class SRL_PDF_Generator {
 
         $organized = $this->organize_grade_items($usergrade['gradeitems']);
 
+        // Header first.
         $html  = $this->get_styles();
         $html .= $this->render_page_header($usergrade, $student_data, $course_info);
-        $html .= $this->spacer(4);
-        $html .= $this->render_third_term_performance_summary($organized, $is_exit_class);
-        $html .= $this->spacer(8);
-        $html .= $this->render_attendance_and_grade_scale($organized, $announcements);
-        $html .= $this->spacer(8);
-
+        $html .= $this->spacer(3);
         $pdf->writeHTML($html, true, false, true, false, '');
 
-        // Subject table: mixed direct-draw (rotated headers) + cell rows
+        // Direct TCPDF drawing gives reliable horizontal/vertical centering.
+        if ($is_exit_class) {
+            $legacy = $this->render_third_term_performance_summary(
+                $organized,
+                true,
+                $usergrade['courseid'] ?? 0,
+                $usergrade['userid'] ?? 0
+            );
+            $pdf->writeHTML($legacy, true, false, true, false, '');
+        } else {
+            $this->draw_third_term_performance_summary(
+                $pdf,
+                $organized,
+                $usergrade['courseid'] ?? 0,
+                $usergrade['userid'] ?? 0
+            );
+        }
+
+        // Attendance / grade scale.
+        $html_mid  = $this->spacer(3);
+        $html_mid .= $this->render_attendance_and_grade_scale($organized, $announcements);
+        $html_mid .= $this->spacer(3);
+        $pdf->writeHTML($html_mid, true, false, true, false, '');
+
         if ($is_exit_class) {
             $this->draw_exit_class_subject_table($pdf, $organized);
         } else {
             $this->draw_standard_third_term_subject_table($pdf, $organized);
         }
 
-        $html2  = $this->spacer(8);
+        // Keep the end section compact so complete 3rd-term reports stay on one page.
+        $html2  = $this->spacer(3);
         $html2 .= $this->render_remarks($organized, $staff);
-        $html2 .= $this->spacer(8);
+        $html2 .= $this->spacer(2);
         $html2 .= $this->render_announcements($announcements);
         $html2 .= $this->render_footer();
 
         $pdf->writeHTML($html2, true, false, true, false, '');
+    }
+
+    private function draw_third_term_performance_summary($pdf, $organized, $course_id, $student_id) {
+        $complete = SRL_Grade_Organizer::has_complete_term_history($organized['subjects']);
+        $third    = SRL_Grade_Organizer::calc_third_term_summary($organized['subjects']);
+        $total    = $organized['course_total'];
+
+        // Section heading.
+        $x = 10;
+        $w = $pdf->getPageWidth() - 20;
+        $pdf->SetFillColor(52, 73, 94);
+        $pdf->SetTextColor(255, 255, 255);
+        $pdf->SetFont('dejavusans', 'B', 10);
+        $pdf->Cell($w, 8, 'PERFORMANCE SUMMARY', 0, 1, 'C', true);
+
+        $ranking = SRL_Ranking_Repository::get_student_ranking($course_id, $student_id);
+        $third_position = $ranking
+            ? $this->format_position($ranking['position_num']) . ' out of ' . (int)$ranking['num_students']
+            : 'N/A';
+
+        $pdf->Ln(1);
+        $this->draw_summary_label($pdf, '3RD TERM');
+        $this->draw_summary_card_row($pdf, [
+            ['POSITION', $third_position, [0, 53, 128]],
+            ['TOTAL OBTAINED', $third['obtained'], [93, 45, 145]],
+            ['TOTAL OBTAINABLE', $third['obtainable'], [0, 114, 188]],
+            ['PERCENTAGE', $third['percentage'], [0, 138, 118]],
+        ]);
+
+        if ($complete && $total) {
+            $pdf->Ln(2);
+            $this->draw_summary_label($pdf, 'CUMULATIVE');
+
+            $cum_position = $this->format_position($total['rank'] ?? null) . ' out of ' . ($total['numusers'] ?? 'N/A');
+
+            $this->draw_summary_card_row($pdf, [
+                ['POSITION', $cum_position, [0, 53, 128]],
+                ['TOTAL OBTAINED', $total['gradeformatted'], [93, 45, 145]],
+                ['TOTAL OBTAINABLE', $total['grademax'], [0, 114, 188]],
+                ['PERCENTAGE', $total['percentageformatted'], [0, 138, 118]],
+            ]);
+        }
+
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->Ln(1);
+    }
+
+    private function draw_summary_label($pdf, $label) {
+        $pdf->SetFont('dejavusans', 'B', 7.5);
+        $pdf->SetTextColor(44, 62, 80);
+        $pdf->Cell(0, 4, $label, 0, 1, 'L', false);
+    }
+
+    private function draw_summary_card_row($pdf, $cards) {
+        $page_w = $pdf->getPageWidth();
+        $left = 10;
+        $total_w = $page_w - 20;
+        $card_w = $total_w / count($cards);
+        $y = $pdf->GetY();
+        $h = 14;
+
+        foreach ($cards as $i => [$label, $value, $rgb]) {
+            $x = $left + ($i * $card_w);
+
+            $pdf->SetFillColor($rgb[0], $rgb[1], $rgb[2]);
+            $pdf->SetDrawColor(0, 0, 0);
+            $pdf->Rect($x, $y, $card_w, $h, 'FD');
+
+            // Label: centred inside upper half.
+            $pdf->SetTextColor(255, 255, 255);
+            $pdf->SetFont('dejavusans', 'B', 6.2);
+            $pdf->SetXY($x + 1, $y + 1.7);
+            $pdf->Cell($card_w - 2, 3.5, $label, 0, 0, 'C', false);
+
+            // Value: centred inside lower half.
+            $pdf->SetFont('dejavusans', 'B', 10.5);
+            $pdf->SetXY($x + 1, $y + 6.2);
+            $pdf->Cell($card_w - 2, 5.5, (string)$value, 0, 0, 'C', false);
+        }
+
+        $pdf->SetY($y + $h);
     }
 
     // -------------------------------------------------------------------------
@@ -305,7 +406,7 @@ class SRL_PDF_Generator {
     }
 
     private function draw_standard_third_term_rows($pdf, $organized, $cols, $lm, $complete) {
-        $row_h = 6;
+        $row_h = $complete ? 5.4 : 6;
         $row_num = 0;
 
         foreach ($organized['subjects'] as $subject_name => $subject_data) {
@@ -831,7 +932,7 @@ class SRL_PDF_Generator {
     }
 
     private function render_footer() {
-        return '<div style="margin-top:8px; border-top:1px solid #333; padding-top:4px; text-align:center; font-size:7px;">
+        return '<div style="margin-top:2px; border-top:1px solid #333; padding-top:1px; text-align:center; font-size:6.5px; line-height:8px;">
             Petra Christian Academy • Generated on ' . date('F j, Y') . '
         </div>';
     }
