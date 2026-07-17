@@ -287,6 +287,7 @@ public static function render_standard_third_term_subject_table($subjects) {
                 $terms['term1']['formatted'],
                 $terms['term2']['formatted'],
                 $parent['gradeformatted'] ?? '-',
+                $cum_avg,
                 $cum_grade,
                 $cum_pos,
             ]);
