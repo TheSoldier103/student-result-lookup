@@ -152,12 +152,7 @@ public static function display_grades($token, $moodle_endpoint, $student_id, $co
 // -----------------------------------------------------------------------------
 
 function srl_display_grades($token, $moodle_endpoint, $student_id, $course_id) {
-    return SRL_Web_Renderer::display_grades(
-        $token,
-        $moodle_endpoint,
-        $student_id,
-        $course_id
-    );
+    return SRL_Web_Renderer::display_grades($token, $moodle_endpoint, $student_id, $course_id);
 }
 
 function srl_render_exit_class_subject_table($subjects) {

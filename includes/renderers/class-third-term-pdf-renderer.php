@@ -20,22 +20,12 @@ trait SRL_Third_Term_PDF_Renderer {
         $pdf->writeHTML($html, true, false, true, false, '');
 
         // Direct TCPDF drawing gives reliable horizontal/vertical centering.
-        if ($is_exit_class) {
-            $legacy = $this->render_third_term_performance_summary(
-                $organized,
-                true,
-                $usergrade['courseid'] ?? 0,
-                $usergrade['userid'] ?? 0
-            );
-            $pdf->writeHTML($legacy, true, false, true, false, '');
-        } else {
-            $this->draw_third_term_performance_summary(
-                $pdf,
-                $organized,
-                $usergrade['courseid'] ?? 0,
-                $usergrade['userid'] ?? 0
-            );
-        }
+        $this->draw_third_term_performance_summary(
+            $pdf,
+            $organized,
+            $usergrade['courseid'] ?? 0,
+            $usergrade['userid'] ?? 0
+        );
 
         // Attendance / grade scale.
         $html_mid  = $this->spacer(3);
@@ -315,95 +305,138 @@ trait SRL_Third_Term_PDF_Renderer {
             $this->draw_data_row($pdf, $cols, $lm, $row_values, $row_h, $bg, $bold_indices);
         }
     }
-
-
     private function draw_exit_class_subject_table($pdf, $organized) {
+        $complete = SRL_Grade_Organizer::has_complete_term_history($organized['subjects']);
+
         $pdf->SetFont('dejavusans', '', 7);
-        $lm = $pdf->GetX();
-        $y  = $pdf->GetY();
-
-        $cols = [
-            ['SUBJECT',              55, false],
-            ['1ST TERM\n(100)',      15, true],
-            ['2ND TERM\n(100)',      15, true],
-            ['3RD TERM\nTOTAL\n(100)', 20, false],
-            ['CUM.\nTOTAL',         18, true],
-            ['CUM.\nAVG',           18, true],
-            ['CUM.\nGRADE',         18, true],
-            ['CUM.\nPOSITION',      21, true],
-        ];
-
-        $header_h  = 20;
+        $y = $pdf->GetY();
         $header_bg = [52, 73, 94];
+        $prior_bg  = [93, 109, 126];
+        $cum_bg    = [8, 60, 120];
 
-        // "CUMULATIVE" sub-header over last 4 columns
-        $cum_col_start = 4;
-        $cum_x = $lm;
-        foreach (array_slice($cols, 0, $cum_col_start) as [, $w]) $cum_x += $w;
-        $cum_w = 0;
-        foreach (array_slice($cols, $cum_col_start) as [, $w]) $cum_w += $w;
+        if ($complete) {
+            $cols = [
+                ['SUBJECT', 54, false],
+                ['TOTAL\n(100)', 20, false],
+                ['GRADE', 14, false],
+                ['POSITION', 18, false],
+                ['1ST TERM\n(100)', 18, false],
+                ['2ND TERM\n(100)', 18, false],
+                ['TOTAL\n(300)', 20, false],
+                ['GRADE', 14, false],
+                ['POSITION', 18, false],
+            ];
 
-        $subheader_h = 6;
+            $table_w = 0;
+            foreach ($cols as $col) $table_w += $col[1];
+            $lm = ($pdf->getPageWidth() - $table_w) / 2;
 
-        $pdf->SetFillColor(8, 60, 120);
-        $pdf->SetDrawColor(0, 0, 0);
-        $pdf->SetTextColor(255, 255, 255);
-        $pdf->SetFont('dejavusans', 'B', 6.5);
-        $pdf->SetXY($cum_x, $y);
-        $pdf->Cell($cum_w, $subheader_h, 'CUMULATIVE', 1, 0, 'C', true);
+            $groups = [
+                ['label' => '', 'start' => 0, 'count' => 1, 'bg' => $header_bg],
+                ['label' => '3RD TERM', 'start' => 1, 'count' => 3, 'bg' => $header_bg],
+                ['label' => 'PRIOR TERMS', 'start' => 4, 'count' => 2, 'bg' => $prior_bg],
+                ['label' => 'CUMULATIVE', 'start' => 6, 'count' => 3, 'bg' => $cum_bg],
+            ];
 
-        $non_cum_w = 0;
-        foreach (array_slice($cols, 0, $cum_col_start) as [, $w]) $non_cum_w += $w;
-        $pdf->SetXY($lm, $y);
-        $pdf->SetFillColor(...$header_bg);
-        $pdf->Cell($non_cum_w, $subheader_h, '', 1, 0, 'C', true);
+            $subheader_h = 6;
+            foreach ($groups as $group) {
+                $x = $lm;
+                for ($i = 0; $i < $group['start']; $i++) $x += $cols[$i][1];
+                $w = 0;
+                for ($i = $group['start']; $i < $group['start'] + $group['count']; $i++) $w += $cols[$i][1];
 
-        $y += $subheader_h;
+                $pdf->SetXY($x, $y);
+                $pdf->SetFillColor(...$group['bg']);
+                $pdf->SetDrawColor(0, 0, 0);
+                $pdf->SetTextColor(255, 255, 255);
+                $pdf->SetFont('dejavusans', 'B', 6.2);
+                $pdf->Cell($w, $subheader_h, $group['label'], 1, 0, 'C', true);
+            }
 
-        $this->draw_header_row($pdf, $cols, $lm, $y, $header_h, $header_bg);
+            $y += $subheader_h;
+            $header_h = 14;
+            $column_header_colors = [
+                0 => $header_bg,
+                1 => $header_bg,
+                2 => $header_bg,
+                3 => $header_bg,
+                4 => $prior_bg,
+                5 => $prior_bg,
+                6 => $cum_bg,
+                7 => $cum_bg,
+                8 => $cum_bg,
+            ];
+            $this->draw_header_row($pdf, $cols, $lm, $y, $header_h, $header_bg, $column_header_colors);
+        } else {
+            $cols = [
+                ['SUBJECT', 90, false],
+                ['TOTAL\n(100)', 36, false],
+                ['GRADE', 28, false],
+                ['POSITION', 36, false],
+            ];
+            $table_w = 0;
+            foreach ($cols as $col) $table_w += $col[1];
+            $lm = ($pdf->getPageWidth() - $table_w) / 2;
+            $header_h = 14;
+            $this->draw_header_row($pdf, $cols, $lm, $y, $header_h, $header_bg);
+        }
+
         $pdf->SetXY($lm, $y + $header_h);
         $pdf->SetTextColor(0, 0, 0);
 
-        // Data rows
-        $row_h  = 6;
+        $row_h = 6;
         $row_num = 0;
 
         foreach ($organized['subjects'] as $subject_name => $subject_data) {
             $row_num++;
             $bg = ($row_num % 2 === 0) ? [249, 249, 249] : [255, 255, 255];
 
-            $terms = $this->extract_term_totals($subject_data['direct_mods'], $subject_name);
+            $terms  = $this->extract_term_totals($subject_data['direct_mods'] ?? [], $subject_name);
+            $third  = $subject_data['third_subcat'] ?? null;
+            $parent = $subject_data['category'] ?? [];
 
-            // For JSS3/SS3 the 3rd term total is a direct mod (term3), not a sub-category
-            $third_total_fmt  = $terms['term3']['formatted'];
-            $third_graderaw   = $terms['term3']['graderaw'];
+            $third_raw = $third['graderaw'] ?? ($terms['term3']['graderaw'] ?? null);
+            $third_total = $third_raw !== null
+                ? ($third['gradeformatted'] ?? $terms['term3']['formatted'] ?? '-')
+                : '-';
 
-            $parent        = $subject_data['category'];
-            $cum_total_fmt = $parent['gradeformatted'];
-            $cum_pos       = (($parent['rank'] ?? 0) > 0)
-                                 ? $this->format_position($parent['rank'])
-                                 : 'N/A';
+            $third_grade = $third_raw !== null
+                ? ((!empty($third['lettergradeformatted']) && $third['lettergradeformatted'] !== '-')
+                    ? $third['lettergradeformatted']
+                    : $this->derive_grade($third_raw))
+                : '-';
 
-            $cum_avg_data  = $this->calc_cum_avg($terms, $third_graderaw);
-            $cum_avg_fmt   = $cum_avg_data['avg'] !== null
-                                 ? number_format($cum_avg_data['avg'], 2)
-                                 : '-';
-            $cum_grade     = $cum_avg_data['avg'] !== null
-                                 ? $this->derive_grade($cum_avg_data['avg'])
-                                 : '-';
+            $third_pos = ($third_raw !== null && (($third['rank'] ?? 0) > 0))
+                ? $this->format_position($third['rank'])
+                : '-';
 
             $row_values = [
                 $subject_name,
-                $terms['term1']['formatted'],
-                $terms['term2']['formatted'],
-                $third_total_fmt,
-                $cum_total_fmt,
-                $cum_avg_fmt,
-                $cum_grade,
-                $cum_pos,
+                $third_total,
+                $third_grade,
+                $third_pos,
             ];
 
-            $this->draw_data_row($pdf, $cols, $lm, $row_values, $row_h, $bg, [3, 4, 5, 6, 7]);
+            if ($complete) {
+                $cum_grade = (!empty($parent['lettergradeformatted']) && $parent['lettergradeformatted'] !== '-')
+                    ? $parent['lettergradeformatted']
+                    : $this->derive_grade(SRL_Grade_Organizer::normalized_percentage($parent));
+
+                $cum_pos = (($parent['rank'] ?? 0) > 0)
+                    ? $this->format_position($parent['rank'])
+                    : 'N/A';
+
+                $row_values = array_merge($row_values, [
+                    $terms['term1']['formatted'],
+                    $terms['term2']['formatted'],
+                    $parent['gradeformatted'] ?? '-',
+                    $cum_grade,
+                    $cum_pos,
+                ]);
+            }
+
+            $bold_indices = $complete ? [1, 4, 6, 7, 8] : [1];
+            $this->draw_data_row($pdf, $cols, $lm, $row_values, $row_h, $bg, $bold_indices);
         }
 
         $pdf->SetDrawColor(0, 0, 0);
@@ -411,6 +444,7 @@ trait SRL_Third_Term_PDF_Renderer {
         $pdf->SetFont('dejavusans', '', 8);
         $pdf->SetY($pdf->GetY() + 2);
     }
+
 
 
     private function render_third_term_performance_summary($organized, $is_exit_class = false, $course_id = 0, $student_id = 0) {
