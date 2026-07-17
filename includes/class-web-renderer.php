@@ -263,8 +263,6 @@ public static function render_standard_third_term_subject_table($subjects) {
 '
             . '<th style="padding:6px;border:1px solid #ccc;">Total (100)</th>
 '
-            . '<th style="padding:6px;border:1px solid #ccc;">Avg</th>
-'
             . '<th style="padding:6px;border:1px solid #ccc;">Grade</th>
 '
             . '<th style="padding:6px;border:1px solid #ccc;">Position</th>
