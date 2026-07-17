@@ -236,6 +236,13 @@ class SRL_PDF_Generator {
             ? $this->format_position($ranking['position_num']) . ' out of ' . (int)$ranking['num_students']
             : 'N/A';
 
+        $third_obtained_value = is_numeric(str_replace(',', '', (string)$third['obtained']))
+            ? number_format((float)str_replace(',', '', (string)$third['obtained']), 2)
+            : $third['obtained'];
+        $third_obtainable_value = is_numeric(str_replace(',', '', (string)$third['obtainable']))
+            ? number_format((float)str_replace(',', '', (string)$third['obtainable']), 0)
+            : $third['obtainable'];
+
         $pdf->Ln(1);
         $this->draw_summary_label($pdf, '3RD TERM');
         $this->draw_summary_card_row($pdf, [
@@ -250,11 +257,17 @@ class SRL_PDF_Generator {
             $this->draw_summary_label($pdf, 'CUMULATIVE');
 
             $cum_position = $this->format_position($total['rank'] ?? null) . ' out of ' . ($total['numusers'] ?? 'N/A');
+            $cum_obtained_value = is_numeric(str_replace(',', '', (string)($total['gradeformatted'] ?? '')))
+                ? number_format((float)str_replace(',', '', (string)$total['gradeformatted']), 0)
+                : ($total['gradeformatted'] ?? 'N/A');
+            $cum_obtainable_value = is_numeric($total['grademax'] ?? null)
+                ? number_format((float)$total['grademax'], 0)
+                : ($total['grademax'] ?? 'N/A');
 
             $this->draw_summary_card_row($pdf, [
                 ['POSITION', $cum_position, [0, 53, 128]],
-                ['TOTAL OBTAINED', $total['gradeformatted'], [93, 45, 145]],
-                ['TOTAL OBTAINABLE', $total['grademax'], [0, 114, 188]],
+                ['TOTAL OBTAINED', $cum_obtained_value, [93, 45, 145]],
+                ['TOTAL OBTAINABLE', $cum_obtainable_value, [0, 114, 188]],
                 ['PERCENTAGE', $total['percentageformatted'], [0, 138, 118]],
             ]);
         }
@@ -859,38 +872,38 @@ class SRL_PDF_Generator {
     }
 
     private function render_attendance_and_grade_scale($organized, $announcements) {
-        $html = '<table style="width:100%; margin-top:3px; margin-bottom:3px;"><tr>';
+        $html = '<table style="width:100%; margin-top:2px; margin-bottom:2px;"><tr>';
 
-        $html .= '<td style="width:48%; vertical-align:middle;">';
+        $html .= '<td style="width:48%; vertical-align:top;">';
         $html .= $this->section_header('Attendance');
-        $html .= $this->spacer(2);
-        $html .= '<table width="100%" cellpadding="0" cellspacing="0">
+        $html .= $this->spacer(1);
+        $html .= '<table width="100%" cellpadding="1" cellspacing="0" style="font-size:6.5px; font-weight:normal;">
             <tr>
-                <td bgcolor="#f5f5f5" style="padding:5px; border:1px solid #ccc; border-bottom:1px solid #000;"><strong>Days School Opened:</strong></td>
-                <td style="padding:5px; text-align:center; border:1px solid #ccc; border-bottom:1px solid #000;">' . ($announcements['days_opened'] ?? 'N/A') . '</td>
+                <td bgcolor="#f5f5f5" style="border:1px solid #ccc;"><b>Days School Opened:</b></td>
+                <td style="text-align:center; border:1px solid #ccc;">' . ($announcements['days_opened'] ?? 'N/A') . '</td>
             </tr>
             <tr>
-                <td bgcolor="#f5f5f5" style="padding:5px; border:1px solid #ccc;"><strong>Days Present:</strong></td>
-                <td style="padding:5px; text-align:center; border:1px solid #ccc;">' . ($organized['attendance']['present'] ?? 'N/A') . '</td>
+                <td bgcolor="#f5f5f5" style="border:1px solid #ccc;"><b>Days Present:</b></td>
+                <td style="text-align:center; border:1px solid #ccc;">' . ($organized['attendance']['present'] ?? 'N/A') . '</td>
             </tr>
         </table></td>';
 
         $html .= '<td style="width:4%;"></td>';
 
-        $html .= '<td style="width:48%; vertical-align:middle;">';
+        $html .= '<td style="width:48%; vertical-align:top;">';
         $html .= $this->section_header('Grade Scale');
-        $html .= $this->spacer(2);
-        $html .= '<table width="100%" cellpadding="0" cellspacing="0">
+        $html .= $this->spacer(1);
+        $html .= '<table width="100%" cellpadding="1" cellspacing="0" style="font-size:6.2px; font-weight:normal;">
             <tr bgcolor="#ecf0f1">
-                <th style="padding:4px; text-align:center; border:1px solid #000; font-weight:bold;">GRADE</th>
-                <th style="padding:4px; text-align:center; border:1px solid #000; font-weight:bold;">RANGE</th>
-                <th style="padding:4px; text-align:center; border:1px solid #000; font-weight:bold;">REMARK</th>
+                <th style="text-align:center; border:1px solid #000; font-weight:normal;">GRADE</th>
+                <th style="text-align:center; border:1px solid #000; font-weight:normal;">RANGE</th>
+                <th style="text-align:center; border:1px solid #000; font-weight:normal;">REMARK</th>
             </tr>';
         foreach ($this->grade_scale as $grade => $info) {
             $html .= '<tr>
-                <td style="padding:3px; text-align:center; border:1px solid #ccc;">' . $grade . '</td>
-                <td style="padding:3px; text-align:center; border:1px solid #ccc;">' . $info['min'] . '-' . $info['max'] . '</td>
-                <td style="padding:3px; text-align:center; border:1px solid #ccc;">' . $info['remark'] . '</td>
+                <td style="text-align:center; border:1px solid #ccc; font-weight:normal;">' . $grade . '</td>
+                <td style="text-align:center; border:1px solid #ccc; font-weight:normal;">' . $info['min'] . '-' . $info['max'] . '</td>
+                <td style="text-align:center; border:1px solid #ccc; font-weight:normal;">' . $info['remark'] . '</td>
             </tr>';
         }
         $html .= '</table></td></tr></table>';

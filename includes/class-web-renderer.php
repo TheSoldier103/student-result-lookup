@@ -61,18 +61,34 @@ public static function display_grades($token, $moodle_endpoint, $student_id, $co
 
         if ($is_third_term && !$is_exit_class) {
             $complete = srl_has_complete_term_history($organized['subjects']);
-            $third    = srl_calc_third_term_summary($organized['subjects']);
+
+            $third = srl_calc_third_term_summary($organized['subjects']);
+
+            // Format 3rd-term totals consistently.
+            $third_obtained = is_numeric(str_replace(',', '', (string)$third['obtained']))
+                ? number_format((float)str_replace(',', '', $third['obtained']), 2)
+                : $third['obtained'];
+
+            $third_obtainable = is_numeric(str_replace(',', '', (string)$third['obtainable']))
+                ? number_format((float)str_replace(',', '', $third['obtainable']), 0)
+                : $third['obtainable'];
 
             echo '<div style="font-weight:600;color:#2c3e50;margin:10px 0 8px;">3rd Term</div>';
             echo '<div class="srl-performance-summary">';
             foreach ([
                 ['Position', (function() use ($course_id, $student_id) {
                     $ranking = srl_get_third_term_ranking($course_id, $student_id);
-                    if (!$ranking) return 'N/A';
-                    return srl_format_position($ranking['position_num']) . ' out of ' . (int)$ranking['num_students'];
+
+                    if (!$ranking) {
+                        return 'N/A';
+                    }
+
+                    return srl_format_position($ranking['position_num'])
+                        . ' out of '
+                        . (int)$ranking['num_students'];
                 })()],
-                ['Total Obtained', $third['obtained']],
-                ['Total Obtainable', $third['obtainable']],
+                ['Total Obtained', $third_obtained],
+                ['Total Obtainable', $third_obtainable],
                 ['Percentage', $third['percentage']],
             ] as [$label, $value]) {
                 echo '<div class="srl-stat-card"><div class="srl-stat-label">' . esc_html($label) . '</div><div class="srl-stat-value">' . esc_html($value) . '</div></div>';
@@ -81,15 +97,30 @@ public static function display_grades($token, $moodle_endpoint, $student_id, $co
 
             if ($complete) {
                 $total = $organized['course_total'];
-                $position = srl_format_position($total['rank'] ?? null) . ' out of ' . ($total['numusers'] ?? 'N/A');
-                $cum_avg = srl_normalized_percentage($total);
+
+                $position = srl_format_position($total['rank'] ?? null)
+                    . ' out of '
+                    . ($total['numusers'] ?? 'N/A');
+
+                // Format cumulative totals consistently with 3rd term.
+                $cum_obtained = is_numeric(str_replace(',', '', (string)($total['gradeformatted'] ?? '')))
+                    ? number_format(
+                        (float)str_replace(',', '', $total['gradeformatted']),
+                        0
+                    )
+                    : ($total['gradeformatted'] ?? 'N/A');
+
+                $cum_obtainable = is_numeric($total['grademax'] ?? null)
+                    ? number_format((float)$total['grademax'], 0)
+                    : ($total['grademax'] ?? 'N/A');
 
                 echo '<div style="font-weight:600;color:#2c3e50;margin:18px 0 8px;">Cumulative</div>';
                 echo '<div class="srl-performance-summary">';
+
                 foreach ([
                     ['Position', $position],
-                    ['Total Obtained', $total['gradeformatted']],
-                    ['Total Obtainable', $total['grademax']],
+                    ['Total Obtained', $cum_obtained],
+                    ['Total Obtainable', $cum_obtainable],
                     ['Percentage', $total['percentageformatted']],
                 ] as [$label, $value]) {
                     echo '<div class="srl-stat-card"><div class="srl-stat-label">' . esc_html($label) . '</div><div class="srl-stat-value">' . esc_html($value) . '</div></div>';
