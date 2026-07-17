@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Student Result Lookup
  * Description: Parent-facing form to lookup student courses and grades dynamically from Moodle.
- * Version: 6.0-SPLIT
+ * Version: 7.0-THIRD-TERM-UPDATE
  * Author: Petra Christian Academy
  */
 
