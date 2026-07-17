@@ -145,3 +145,33 @@ public static function display_grades($token, $moodle_endpoint, $student_id, $co
         return SRL_Standard_Term_Web_Renderer::render_subject_table($subjects);
     }
 }
+
+
+// -----------------------------------------------------------------------------
+// Backward-compatible global wrapper functions
+// -----------------------------------------------------------------------------
+
+function srl_display_grades($token, $moodle_endpoint, $student_id, $course_id) {
+    return SRL_Web_Renderer::display_grades(
+        $token,
+        $moodle_endpoint,
+        $student_id,
+        $course_id
+    );
+}
+
+function srl_render_exit_class_subject_table($subjects) {
+    return SRL_Web_Renderer::render_exit_class_subject_table($subjects);
+}
+
+function srl_render_standard_third_term_subject_table($subjects) {
+    return SRL_Web_Renderer::render_standard_third_term_subject_table($subjects);
+}
+
+function srl_render_third_term_subject_table($subjects) {
+    return SRL_Web_Renderer::render_third_term_subject_table($subjects);
+}
+
+function srl_render_standard_subject_table($subjects) {
+    return SRL_Web_Renderer::render_standard_subject_table($subjects);
+}
