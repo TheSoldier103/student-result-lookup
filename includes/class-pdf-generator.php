@@ -220,18 +220,18 @@ class SRL_PDF_Generator {
             // Fits within the 190 mm printable width in portrait while keeping
             // compact/rotated headers for the dense cumulative report.
             $cols = [
-                ['SUBJECT', 34, false],
-                ['CA\n(20)', 10, false],
-                ['1ST EXAM\n(30)', 10, false],
-                ['2ND EXAM\n(50)', 10, false],
-                ['TOTAL\n(100)', 11, false],
-                ['GRADE', 9, false],
-                ['POSITION', 12, false],
-                ['1ST TERM\n(100)', 12, false],
-                ['2ND TERM\n(100)', 12, false],
-                ['TOTAL\n(300)', 13, false],
-                ['GRADE', 9, false],
+                ['SUBJECT', 38, false],
+                ['CA\n(20)', 12, false],
+                ['1ST EXAM\n(30)', 14, false],
+                ['2ND EXAM\n(50)', 14, false],
+                ['TOTAL\n(100)', 14, false],
+                ['GRADE', 11, false],
                 ['POSITION', 14, false],
+                ['1ST TERM\n(100)', 16, false],
+                ['2ND TERM\n(100)', 16, false],
+                ['TOTAL\n(300)', 17, false],
+                ['GRADE', 11, false],
+                ['POSITION', 13, false],
             ];
 
             $groups = [
@@ -254,20 +254,43 @@ class SRL_PDF_Generator {
                 $pdf->Cell($w, $subheader_h, $group['label'], 1, 0, 'C', true);
             }
 
+            // Expand to the full printable width and centre the table.
+            $table_w = 0;
+            foreach ($cols as $col) $table_w += $col[1];
+            $lm = ($pdf->getPageWidth() - $table_w) / 2;
+
+            // Redraw grouped headers using the centred left margin.
+            foreach ($groups as $group) {
+                $x = $lm;
+                for ($i = 0; $i < $group['start']; $i++) $x += $cols[$i][1];
+                $w = 0;
+                for ($i = $group['start']; $i < $group['start'] + $group['count']; $i++) $w += $cols[$i][1];
+                $pdf->SetXY($x, $y);
+                $pdf->SetFillColor(...$group['bg']);
+                $pdf->SetDrawColor(0, 0, 0);
+                $pdf->SetTextColor(255, 255, 255);
+                $pdf->SetFont('dejavusans', 'B', 6.2);
+                $pdf->Cell($w, $subheader_h, $group['label'], 1, 0, 'C', true);
+            }
+
             $y += $subheader_h;
+            $header_h = 14;
             $this->draw_header_row($pdf, $cols, $lm, $y, $header_h, $header_bg);
         } else {
             $cols = [
-                ['SUBJECT', 60, false],
-                ['CA\n(20)', 16, false],
-                ['1ST EXAM\n(30)', 18, false],
-                ['2ND EXAM\n(50)', 18, false],
-                ['TOTAL\n(100)', 20, false],
+                ['SUBJECT', 65, false],
+                ['CA\n(20)', 20, false],
+                ['1ST EXAM\n(30)', 23, false],
+                ['2ND EXAM\n(50)', 23, false],
+                ['TOTAL\n(100)', 22, false],
                 ['GRADE', 17, false],
-                ['POSITION', 23, false],
+                ['POSITION', 20, false],
             ];
-            $this->draw_header_row($pdf, $cols, $lm, $y, 18, $header_bg);
-            $header_h = 18;
+            $table_w = 0;
+            foreach ($cols as $col) $table_w += $col[1];
+            $lm = ($pdf->getPageWidth() - $table_w) / 2;
+            $header_h = 14;
+            $this->draw_header_row($pdf, $cols, $lm, $y, $header_h, $header_bg);
         }
 
         $pdf->SetXY($lm, $y + $header_h);
@@ -546,14 +569,23 @@ class SRL_PDF_Generator {
 
     private function render_summary_box_row($boxes) {
         $width = 100 / max(1, count($boxes));
-        $html = '<table style="width:100%; margin-bottom:3px; border-collapse:collapse;"><tr>';
+        $html = '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>';
+
         foreach ($boxes as [$bg, $label, $value]) {
-            $html .= '<td bgcolor="' . $bg . '" style="width:' . $width . '%; border:1px solid #000; text-align:center; color:#ffffff;">'
-                . '<table width="100%" cellpadding="0" cellspacing="0"><tr><td style="height:40px;text-align:center;vertical-align:middle;font-weight:bold;">'
-                . '<div style="font-size:6px;line-height:5px;margin-bottom:0;">' . $label . '</div>'
-                . '<div style="font-size:10px;">' . $value . '</div>'
-                . '</td></tr></table></td>';
+            $html .= '<td width="' . $width . '%" bgcolor="' . $bg . '" '
+                . 'style="border:1px solid #000; color:#ffffff; text-align:center; vertical-align:middle;">'
+                . '<table width="100%" cellpadding="0" cellspacing="0">'
+                . '<tr><td height="15" align="center" valign="middle" '
+                . 'style="color:#ffffff; font-size:6.5px; font-weight:bold; line-height:8px;">'
+                . $label
+                . '</td></tr>'
+                . '<tr><td height="23" align="center" valign="middle" '
+                . 'style="color:#ffffff; font-size:11px; font-weight:bold; line-height:13px;">'
+                . $value
+                . '</td></tr>'
+                . '</table></td>';
         }
+
         return $html . '</tr></table>';
     }
 
