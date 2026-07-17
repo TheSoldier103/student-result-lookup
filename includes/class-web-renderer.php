@@ -66,7 +66,11 @@ public static function display_grades($token, $moodle_endpoint, $student_id, $co
             echo '<div style="font-weight:600;color:#2c3e50;margin:10px 0 8px;">3rd Term</div>';
             echo '<div class="srl-performance-summary">';
             foreach ([
-                ['Position', 'N/A'], // Filled from the ranking cache in the final ranking phase.
+                ['Position', (function() use ($course_id, $student_id) {
+                    $ranking = srl_get_third_term_ranking($course_id, $student_id);
+                    if (!$ranking) return 'N/A';
+                    return srl_format_position($ranking['position_num']) . ' out of ' . (int)$ranking['num_students'];
+                })()],
                 ['Total Obtained', $third['obtained']],
                 ['Total Obtainable', $third['obtainable']],
                 ['Percentage', $third['percentage']],

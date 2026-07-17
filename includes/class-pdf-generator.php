@@ -7,6 +7,7 @@
 if (!defined('ABSPATH')) exit;
 
 require_once plugin_dir_path(__FILE__) . 'class-grade-organizer.php';
+require_once plugin_dir_path(__FILE__) . 'class-ranking-repository.php';
 
 class SRL_PDF_Generator {
 
@@ -515,7 +516,7 @@ class SRL_PDF_Generator {
     // 3RD TERM PERFORMANCE SUMMARY (6 boxes)
     // =========================================================================
 
-    private function render_third_term_performance_summary($organized, $is_exit_class = false) {
+    private function render_third_term_performance_summary($organized, $is_exit_class = false, $course_id = 0, $student_id = 0) {
         $total = $organized['course_total'];
         if (!$total) return '';
 
@@ -545,7 +546,11 @@ class SRL_PDF_Generator {
         $html .= $this->spacer(3);
         $html .= '<div style="font-size:8px;font-weight:bold;color:#2c3e50;margin-bottom:2px;">3RD TERM</div>';
         $html .= $this->render_summary_box_row([
-            ['#003580', 'POSITION', 'N/A'],
+            ['#003580', 'POSITION', (function() use ($course_id, $student_id) {
+                $ranking = SRL_Ranking_Repository::get_student_ranking($course_id, $student_id);
+                if (!$ranking) return 'N/A';
+                return $this->format_position($ranking['position_num']) . ' out of ' . (int)$ranking['num_students'];
+            })()],
             ['#5d2d91', 'TOTAL OBTAINED', $third['obtained']],
             ['#0072bc', 'TOTAL OBTAINABLE', $third['obtainable']],
             ['#008a76', 'PERCENTAGE', $third['percentage']],

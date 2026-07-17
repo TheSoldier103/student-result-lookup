@@ -97,6 +97,80 @@ class SRL_Moodle_API {
         ];
     }
 
+
+    public static function fetch_all_courses($endpoint, $token) {
+        $params = [
+            'wstoken' => $token,
+            'wsfunction' => 'core_course_get_courses',
+            'moodlewsrestformat' => 'json',
+        ];
+        $response = wp_remote_get($endpoint . '?' . http_build_query($params), ['timeout' => 30]);
+        if (is_wp_error($response)) return null;
+        $data = json_decode(wp_remote_retrieve_body($response), true);
+        return is_array($data) ? $data : null;
+    }
+
+    public static function fetch_third_term_courses($endpoint, $token, $session = '') {
+        $courses = self::fetch_all_courses($endpoint, $token);
+        if (!is_array($courses)) return [];
+
+        $result = [];
+        foreach ($courses as $course) {
+            $parsed = self::parse_course_info($course['shortname'] ?? '');
+            if (strcasecmp($parsed['term'] ?? '', '3rd Term') !== 0) continue;
+            if ($session !== '' && strcasecmp($parsed['session'] ?? '', $session) !== 0) continue;
+
+            $result[] = [
+                'id' => (int)($course['id'] ?? 0),
+                'fullname' => $course['fullname'] ?? ($course['shortname'] ?? 'Unnamed course'),
+                'shortname' => $course['shortname'] ?? '',
+                'class' => $parsed['class'] ?? 'N/A',
+                'term' => $parsed['term'] ?? 'N/A',
+                'session' => $parsed['session'] ?? 'N/A',
+            ];
+        }
+
+        usort($result, function($a, $b) {
+            return strcasecmp(($a['session'] ?? '') . ' ' . ($a['class'] ?? ''), ($b['session'] ?? '') . ' ' . ($b['class'] ?? ''));
+        });
+
+        return $result;
+    }
+
+    public static function fetch_enrolled_students($endpoint, $token, $course_id) {
+        $params = [
+            'wstoken' => $token,
+            'wsfunction' => 'core_enrol_get_enrolled_users',
+            'moodlewsrestformat' => 'json',
+            'courseid' => $course_id,
+        ];
+        $response = wp_remote_get($endpoint . '?' . http_build_query($params), ['timeout' => 30]);
+        if (is_wp_error($response)) return null;
+
+        $users = json_decode(wp_remote_retrieve_body($response), true);
+        if (!is_array($users)) return null;
+
+        $students = [];
+        foreach ($users as $user) {
+            $is_student = false;
+            foreach ((array)($user['roles'] ?? []) as $role) {
+                $short = strtolower((string)($role['shortname'] ?? ''));
+                if (in_array($short, ['student'], true)) {
+                    $is_student = true;
+                    break;
+                }
+            }
+            if (!$is_student) continue;
+
+            $students[] = [
+                'id' => (int)($user['id'] ?? 0),
+                'fullname' => $user['fullname'] ?? trim(($user['firstname'] ?? '') . ' ' . ($user['lastname'] ?? '')),
+                'idnumber' => $user['idnumber'] ?? '',
+            ];
+        }
+        return $students;
+    }
+
     public static function fetch_announcements($endpoint, $token, $course_id) {
         $forum_params = [
             'wstoken' => $token,
@@ -180,3 +254,6 @@ function srl_fetch_course_details($endpoint, $token, $course_id) { return SRL_Mo
 function srl_parse_course_info($course_shortname) { return SRL_Moodle_API::parse_course_info($course_shortname); }
 function srl_fetch_announcements($endpoint, $token, $course_id) { return SRL_Moodle_API::fetch_announcements($endpoint, $token, $course_id); }
 function srl_fetch_staff($endpoint, $token, $course_id) { return SRL_Moodle_API::fetch_staff($endpoint, $token, $course_id); }
+function srl_fetch_all_courses($endpoint, $token) { return SRL_Moodle_API::fetch_all_courses($endpoint, $token); }
+function srl_fetch_third_term_courses($endpoint, $token, $session = '') { return SRL_Moodle_API::fetch_third_term_courses($endpoint, $token, $session); }
+function srl_fetch_enrolled_students($endpoint, $token, $course_id) { return SRL_Moodle_API::fetch_enrolled_students($endpoint, $token, $course_id); }
