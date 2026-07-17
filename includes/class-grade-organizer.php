@@ -148,10 +148,73 @@ class SRL_Grade_Organizer {
         }
         if (!is_numeric($average)) return '-';
         $avg = (float)$average;
+
+        // Grade by lower threshold only. This avoids gaps such as 69.33 or 79.67
+        // falling through because an integer upper bound was used in the config.
         foreach ($scale as $letter => $info) {
-            if ($avg >= $info['min'] && $avg <= $info['max']) return $letter;
+            if ($avg >= (float)$info['min']) return $letter;
         }
         return 'F';
+    }
+
+    public static function has_complete_term_history($subjects) {
+        $has_term1 = false;
+        $has_term2 = false;
+        $has_term3 = false;
+
+        foreach ((array)$subjects as $subject_data) {
+            $terms = self::extract_term_totals($subject_data['direct_mods'] ?? []);
+            if (($terms['term1']['graderaw'] ?? null) !== null) $has_term1 = true;
+            if (($terms['term2']['graderaw'] ?? null) !== null) $has_term2 = true;
+
+            $third_subcat = $subject_data['third_subcat'] ?? null;
+            if ($third_subcat && ($third_subcat['graderaw'] ?? null) !== null) $has_term3 = true;
+        }
+
+        return $has_term1 && $has_term2 && $has_term3;
+    }
+
+    public static function calc_third_term_summary($subjects) {
+        $obtained = 0.0;
+        $obtainable = 0.0;
+        $subject_count = 0;
+
+        foreach ((array)$subjects as $subject_data) {
+            $third = $subject_data['third_subcat'] ?? null;
+            if (!$third || ($third['graderaw'] ?? null) === null) continue;
+
+            $obtained += (float)$third['graderaw'];
+            $obtainable += (float)($third['grademax'] ?? 100);
+            $subject_count++;
+        }
+
+        if ($subject_count === 0 || $obtainable <= 0) {
+            return [
+                'obtained' => '-', 'obtainable' => '-', 'percentage' => '-',
+                'average' => '-', 'subject_count' => 0,
+            ];
+        }
+
+        $percentage = ($obtained / $obtainable) * 100;
+        $average = $obtained / $subject_count;
+
+        return [
+            'obtained' => number_format($obtained, 2),
+            'obtainable' => number_format($obtainable, 2),
+            'percentage' => number_format($percentage, 2) . ' %',
+            'average' => number_format($average, 2),
+            'subject_count' => $subject_count,
+        ];
+    }
+
+    public static function normalized_percentage($item) {
+        if (!empty($item['percentageformatted']) && $item['percentageformatted'] !== '-') {
+            return trim(str_replace('%', '', $item['percentageformatted']));
+        }
+        $raw = $item['graderaw'] ?? null;
+        $max = $item['grademax'] ?? null;
+        if ($raw === null || !is_numeric($max) || (float)$max <= 0) return '-';
+        return number_format(((float)$raw / (float)$max) * 100, 2);
     }
 
     public static function calc_overall_cumulative_summary($subjects) {
@@ -247,6 +310,9 @@ function srl_extract_term_totals($direct_mods) { return SRL_Grade_Organizer::ext
 function srl_extract_third_term_components($third_subcat_mods) { return SRL_Grade_Organizer::extract_third_term_components($third_subcat_mods); }
 function srl_calc_cum_avg($terms, $third_graderaw) { return SRL_Grade_Organizer::calc_cum_avg($terms, $third_graderaw); }
 function srl_derive_grade($average) { return SRL_Grade_Organizer::derive_grade($average); }
+function srl_has_complete_term_history($subjects) { return SRL_Grade_Organizer::has_complete_term_history($subjects); }
+function srl_calc_third_term_summary($subjects) { return SRL_Grade_Organizer::calc_third_term_summary($subjects); }
+function srl_normalized_percentage($item) { return SRL_Grade_Organizer::normalized_percentage($item); }
 function srl_calc_overall_cumulative_summary($subjects) { return SRL_Grade_Organizer::calc_overall_cumulative_summary($subjects); }
 function srl_format_position($number) { return SRL_Grade_Organizer::format_position($number); }
 function srl_get_component_type_third($itemname, $subject_name) { return SRL_Grade_Organizer::get_component_type_third($itemname, $subject_name); }

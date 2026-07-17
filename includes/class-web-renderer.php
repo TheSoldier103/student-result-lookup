@@ -57,33 +57,57 @@ public static function display_grades($token, $moodle_endpoint, $student_id, $co
  
     // ---- Performance Summary ----
     if ($organized['course_total']) {
-        $total    = $organized['course_total'];
-        $position = srl_format_position($total['rank'] ?? null) . ' out of ' . ($total['numusers'] ?? 'N/A');
- 
         echo '<div class="srl-section-title">Performance Summary</div>';
-        echo '<div class="srl-performance-summary">';
- 
-        $label_suffix = $is_third_term ? ' (3rd)' : '';
- 
-        foreach ([
-            ['Position' . $label_suffix,         $position],
-            ['Total Obtained' . $label_suffix,    $total['gradeformatted']],
-            ['Total Obtainable' . $label_suffix,  $total['grademax']],
-            ['Percentage' . $label_suffix,        $total['percentageformatted']],
-        ] as [$label, $value]) {
-            echo '<div class="srl-stat-card">';
-            echo '<div class="srl-stat-label">' . $label . '</div>';
-            echo '<div class="srl-stat-value">' . esc_html($value) . '</div>';
+
+        if ($is_third_term && !$is_exit_class) {
+            $complete = srl_has_complete_term_history($organized['subjects']);
+            $third    = srl_calc_third_term_summary($organized['subjects']);
+
+            echo '<div style="font-weight:600;color:#2c3e50;margin:10px 0 8px;">3rd Term</div>';
+            echo '<div class="srl-performance-summary">';
+            foreach ([
+                ['Position', 'N/A'], // Filled from the ranking cache in the final ranking phase.
+                ['Total Obtained', $third['obtained']],
+                ['Total Obtainable', $third['obtainable']],
+                ['Percentage', $third['percentage']],
+                ['Average', $third['average']],
+            ] as [$label, $value]) {
+                echo '<div class="srl-stat-card"><div class="srl-stat-label">' . esc_html($label) . '</div><div class="srl-stat-value">' . esc_html($value) . '</div></div>';
+            }
+            echo '</div>';
+
+            if ($complete) {
+                $total = $organized['course_total'];
+                $position = srl_format_position($total['rank'] ?? null) . ' out of ' . ($total['numusers'] ?? 'N/A');
+                $cum_avg = srl_normalized_percentage($total);
+
+                echo '<div style="font-weight:600;color:#2c3e50;margin:18px 0 8px;">Cumulative</div>';
+                echo '<div class="srl-performance-summary">';
+                foreach ([
+                    ['Position', $position],
+                    ['Total Obtained', $total['gradeformatted']],
+                    ['Total Obtainable', $total['grademax']],
+                    ['Percentage', $total['percentageformatted']],
+                    ['Average', $cum_avg],
+                ] as [$label, $value]) {
+                    echo '<div class="srl-stat-card"><div class="srl-stat-label">' . esc_html($label) . '</div><div class="srl-stat-value">' . esc_html($value) . '</div></div>';
+                }
+                echo '</div>';
+            }
+        } else {
+            $total    = $organized['course_total'];
+            $position = srl_format_position($total['rank'] ?? null) . ' out of ' . ($total['numusers'] ?? 'N/A');
+            echo '<div class="srl-performance-summary">';
+            foreach ([
+                ['Position', $position],
+                ['Total Obtained', $total['gradeformatted']],
+                ['Total Obtainable', $total['grademax']],
+                ['Percentage', $total['percentageformatted']],
+            ] as [$label, $value]) {
+                echo '<div class="srl-stat-card"><div class="srl-stat-label">' . esc_html($label) . '</div><div class="srl-stat-value">' . esc_html($value) . '</div></div>';
+            }
             echo '</div>';
         }
- 
-        if ($is_third_term) {
-            $cum = srl_calc_overall_cumulative_summary($organized['subjects']);
-            echo '<div class="srl-stat-card"><div class="srl-stat-label">Cumulative Total</div><div class="srl-stat-value">' . esc_html($cum['total']) . '</div></div>';
-            echo '<div class="srl-stat-card"><div class="srl-stat-label">Cumulative Average</div><div class="srl-stat-value">' . esc_html($cum['avg']) . '</div></div>';
-        }
- 
-        echo '</div>';
     }
  
     // ---- Subject Performance ----
@@ -185,67 +209,127 @@ public static function render_exit_class_subject_table($subjects) {
 
 /** Web table — standard 3rd term (JSS1/JSS2/SS1/SS2) */
 public static function render_standard_third_term_subject_table($subjects) {
+    $complete = srl_has_complete_term_history($subjects);
+
     echo '<div style="overflow-x:auto;">';
-    echo '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
- 
-    // Two-row header: span "CUMULATIVE" over last 4 columns
+    echo '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
     echo '<thead>';
-    echo '<tr style="background:#34495e;color:#fff;text-align:center;">
-        <th rowspan="2" style="padding:6px;text-align:left;border:1px solid #ccc;">Subject</th>
-        <th rowspan="2" style="padding:6px;border:1px solid #ccc;">1st Term (100)</th>
-        <th rowspan="2" style="padding:6px;border:1px solid #ccc;">2nd Term (100)</th>
-        <th rowspan="2" style="padding:6px;border:1px solid #ccc;">CA (20)</th>
-        <th rowspan="2" style="padding:6px;border:1px solid #ccc;">1st Exam (30)</th>
-        <th rowspan="2" style="padding:6px;border:1px solid #ccc;">2nd Exam (50)</th>
-        <th rowspan="2" style="padding:6px;border:1px solid #ccc;">3rd Term Total (100)</th>
-        <th colspan="4" style="padding:6px;border:1px solid #ccc;background:#083c78;">CUMULATIVE</th>
-    </tr>
-    <tr style="background:#083c78;color:#fff;text-align:center;">
-        <th style="padding:6px;border:1px solid #ccc;">Total</th>
-        <th style="padding:6px;border:1px solid #ccc;">Avg</th>
-        <th style="padding:6px;border:1px solid #ccc;">Grade</th>
-        <th style="padding:6px;border:1px solid #ccc;">Position</th>
-    </tr>';
+
+    if ($complete) {
+        echo '<tr style="background:#34495e;color:#fff;text-align:center;">
+'
+            . '<th rowspan="2" style="padding:6px;text-align:left;border:1px solid #ccc;">Subject</th>
+'
+            . '<th colspan="7" style="padding:6px;border:1px solid #ccc;background:#34495e;">3RD TERM</th>
+'
+            . '<th colspan="2" style="padding:6px;border:1px solid #ccc;background:#5d6d7e;">PRIOR TERMS</th>
+'
+            . '<th colspan="4" style="padding:6px;border:1px solid #ccc;background:#083c78;">CUMULATIVE</th>
+'
+            . '</tr>';
+        echo '<tr style="background:#34495e;color:#fff;text-align:center;">
+'
+            . '<th style="padding:5px;border:1px solid #ccc;">CA (20)</th>
+'
+            . '<th style="padding:5px;border:1px solid #ccc;">1st Exam (30)</th>
+'
+            . '<th style="padding:5px;border:1px solid #ccc;">2nd Exam (50)</th>
+'
+            . '<th style="padding:5px;border:1px solid #ccc;">Total (100)</th>
+'
+            . '<th style="padding:5px;border:1px solid #ccc;">Avg</th>
+'
+            . '<th style="padding:5px;border:1px solid #ccc;">Grade</th>
+'
+            . '<th style="padding:5px;border:1px solid #ccc;">Position</th>
+'
+            . '<th style="padding:5px;border:1px solid #ccc;background:#5d6d7e;">1st Term (100)</th>
+'
+            . '<th style="padding:5px;border:1px solid #ccc;background:#5d6d7e;">2nd Term (100)</th>
+'
+            . '<th style="padding:5px;border:1px solid #ccc;background:#083c78;">Total (300)</th>
+'
+            . '<th style="padding:5px;border:1px solid #ccc;background:#083c78;">Avg</th>
+'
+            . '<th style="padding:5px;border:1px solid #ccc;background:#083c78;">Grade</th>
+'
+            . '<th style="padding:5px;border:1px solid #ccc;background:#083c78;">Position</th>
+'
+            . '</tr>';
+    } else {
+        echo '<tr style="background:#34495e;color:#fff;text-align:center;">
+'
+            . '<th style="padding:6px;text-align:left;border:1px solid #ccc;">Subject</th>
+'
+            . '<th style="padding:6px;border:1px solid #ccc;">CA (20)</th>
+'
+            . '<th style="padding:6px;border:1px solid #ccc;">1st Exam (30)</th>
+'
+            . '<th style="padding:6px;border:1px solid #ccc;">2nd Exam (50)</th>
+'
+            . '<th style="padding:6px;border:1px solid #ccc;">Total (100)</th>
+'
+            . '<th style="padding:6px;border:1px solid #ccc;">Avg</th>
+'
+            . '<th style="padding:6px;border:1px solid #ccc;">Grade</th>
+'
+            . '<th style="padding:6px;border:1px solid #ccc;">Position</th>
+'
+            . '</tr>';
+    }
+
     echo '</thead><tbody>';
- 
     $row = 0;
     foreach ($subjects as $subject_name => $subject_data) {
         $row++;
-        $bg         = ($row % 2 === 0) ? '#f9f9f9' : '#ffffff';
-        $terms      = srl_extract_term_totals($subject_data['direct_mods']);
-        $components = srl_extract_third_term_components($subject_data['third_subcat_mods']);
-        $third_subcat = $subject_data['third_subcat'];
- 
-        $third_total = $third_subcat ? $third_subcat['gradeformatted'] : '-';
-        $third_raw   = $third_subcat ? ($third_subcat['graderaw'] ?? null) : null;
-        $cum_pos     = ($third_subcat && ($third_subcat['rank'] ?? 0) > 0)
-                            ? srl_format_position($subject_data['category']['rank'])
-                            : 'N/A';
- 
-        // Cum position from parent category
-        $parent  = $subject_data['category'];
-        $cum_pos = (($parent['rank'] ?? 0) > 0) ? srl_format_position($parent['rank']) : 'N/A';
- 
-        $cum_data  = srl_calc_cum_avg($terms, $third_raw);
-        $cum_avg   = $cum_data['avg'] !== null ? number_format($cum_data['avg'], 2) : '-';
-        $cum_grade = $cum_data['avg'] !== null ? srl_derive_grade($cum_data['avg']) : '-';
-        $cum_total = $parent['gradeformatted'];
- 
-        echo '<tr style="background:' . $bg . ';text-align:center;">
-            <td style="padding:5px;text-align:left;border:1px solid #ddd;">'  . esc_html($subject_name)             . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                  . esc_html($terms['term1']['formatted']) . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                  . esc_html($terms['term2']['formatted']) . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                  . esc_html($components['ca'])          . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                  . esc_html($components['exam1'])       . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                  . esc_html($components['exam2'])       . '</td>
-            <td style="padding:5px;border:1px solid #ddd;font-weight:bold;">' . esc_html($third_total)              . '</td>
-            <td style="padding:5px;border:1px solid #ddd;font-weight:bold;">' . esc_html($cum_total)                . '</td>
-            <td style="padding:5px;border:1px solid #ddd;font-weight:bold;">' . esc_html($cum_avg)                  . '</td>
-            <td style="padding:5px;border:1px solid #ddd;font-weight:bold;">' . esc_html($cum_grade)                . '</td>
-            <td style="padding:5px;border:1px solid #ddd;">'                  . esc_html($cum_pos)                  . '</td>
-        </tr>';
+        $bg = ($row % 2 === 0) ? '#f9f9f9' : '#ffffff';
+        $terms = srl_extract_term_totals($subject_data['direct_mods'] ?? []);
+        $components = srl_extract_third_term_components($subject_data['third_subcat_mods'] ?? []);
+        $third = $subject_data['third_subcat'] ?? null;
+        $parent = $subject_data['category'] ?? [];
+
+        $third_total = $third['gradeformatted'] ?? '-';
+        $third_avg = $third['averageformatted'] ?? '-';
+        $third_grade = !empty($third['lettergradeformatted']) && $third['lettergradeformatted'] !== '-'
+            ? $third['lettergradeformatted']
+            : srl_derive_grade($third['graderaw'] ?? null);
+        $third_pos = (($third['rank'] ?? 0) > 0) ? srl_format_position($third['rank']) : 'N/A';
+
+        $cells = [
+            $subject_name,
+            $components['ca'],
+            $components['exam1'],
+            $components['exam2'],
+            $third_total,
+            $third_avg,
+            $third_grade,
+            $third_pos,
+        ];
+
+        if ($complete) {
+            $cum_avg = srl_normalized_percentage($parent);
+            $cum_grade = !empty($parent['lettergradeformatted']) && $parent['lettergradeformatted'] !== '-'
+                ? $parent['lettergradeformatted']
+                : srl_derive_grade($cum_avg);
+            $cum_pos = (($parent['rank'] ?? 0) > 0) ? srl_format_position($parent['rank']) : 'N/A';
+            $cells = array_merge($cells, [
+                $terms['term1']['formatted'],
+                $terms['term2']['formatted'],
+                $parent['gradeformatted'] ?? '-',
+                $cum_avg,
+                $cum_grade,
+                $cum_pos,
+            ]);
+        }
+
+        echo '<tr style="background:' . $bg . ';text-align:center;">';
+        foreach ($cells as $i => $value) {
+            $align = ($i === 0) ? 'text-align:left;' : '';
+            $bold = in_array($i, [4, 7, 10, 11, 12, 13], true) ? 'font-weight:bold;' : '';
+            echo '<td style="padding:5px;border:1px solid #ddd;' . $align . $bold . '">' . esc_html($value) . '</td>';
+        }
+        echo '</tr>';
     }
- 
     echo '</tbody></table></div>';
 }
 

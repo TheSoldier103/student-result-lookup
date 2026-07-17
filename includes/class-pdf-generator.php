@@ -174,7 +174,7 @@ class SRL_PDF_Generator {
         $html  = $this->get_styles();
         $html .= $this->render_page_header($usergrade, $student_data, $course_info);
         $html .= $this->spacer(4);
-        $html .= $this->render_third_term_performance_summary($organized);
+        $html .= $this->render_third_term_performance_summary($organized, $is_exit_class);
         $html .= $this->spacer(8);
         $html .= $this->render_attendance_and_grade_scale($organized, $announcements);
         $html .= $this->spacer(8);
@@ -208,61 +208,74 @@ class SRL_PDF_Generator {
     // -------------------------------------------------------------------------
 
     private function draw_standard_third_term_subject_table($pdf, $organized) {
-        $pdf->SetFont('dejavusans', '', 7);
+        $complete = SRL_Grade_Organizer::has_complete_term_history($organized['subjects']);
+        $pdf->SetFont('dejavusans', '', 6.2);
         $lm = $pdf->GetX();
         $y  = $pdf->GetY();
-
-        // [label, width_mm, rotated]
-        $cols = [
-            ['SUBJECT',           40, false],
-            ['1ST TERM\n(100)',   13, true],
-            ['2ND TERM\n(100)',   13, true],
-            ['CA\n(20)',          12, false],
-            ['1ST EXAM\n(30)',    13, false],
-            ['2ND EXAM\n(50)',    13, false],
-            ['3RD TERM\nTOTAL\n(100)', 16, false],
-            ['CUM.\nTOTAL',      13, true],
-            ['CUM.\nAVG',        13, true],
-            ['CUM.\nGRADE',      13, true],
-            ['CUM.\nPOSITION',   17, true],
-        ];
-
-        $header_h  = 20;
         $header_bg = [52, 73, 94];
-
-        // Draw a "CUMULATIVE" spanning sub-header over the last 4 columns
-        $cum_col_start = 7; // index of first cumulative column
-        $cum_x = $lm;
-        foreach (array_slice($cols, 0, $cum_col_start) as [, $w]) $cum_x += $w;
-        $cum_w = 0;
-        foreach (array_slice($cols, $cum_col_start) as [, $w]) $cum_w += $w;
-
         $subheader_h = 6;
+        $header_h = 22;
 
-        // Draw "CUMULATIVE" label bar above those columns
-        $pdf->SetFillColor(8, 60, 120);
-        $pdf->SetDrawColor(0, 0, 0);
-        $pdf->SetTextColor(255, 255, 255);
-        $pdf->SetFont('dejavusans', 'B', 6.5);
-        $pdf->SetXY($cum_x, $y);
-        $pdf->Cell($cum_w, $subheader_h, 'CUMULATIVE', 1, 0, 'C', true);
+        if ($complete) {
+            // Fits within the 190 mm printable width in portrait while keeping
+            // compact/rotated headers for the dense cumulative report.
+            $cols = [
+                ['SUBJECT', 34, false],
+                ['CA\n(20)', 10, true],
+                ['1ST EXAM\n(30)', 10, true],
+                ['2ND EXAM\n(50)', 10, true],
+                ['TOTAL\n(100)', 11, true],
+                ['AVG', 10, true],
+                ['GRADE', 9, true],
+                ['POSITION', 12, true],
+                ['1ST TERM\n(100)', 12, true],
+                ['2ND TERM\n(100)', 12, true],
+                ['TOTAL\n(300)', 13, true],
+                ['AVG', 10, true],
+                ['GRADE', 9, true],
+                ['POSITION', 14, true],
+            ];
 
-        // Blank spacer over non-cumulative columns so border lines up
-        $non_cum_w = 0;
-        foreach (array_slice($cols, 0, $cum_col_start) as [, $w]) $non_cum_w += $w;
-        $pdf->SetXY($lm, $y);
-        $pdf->SetFillColor(...$header_bg);
-        $pdf->Cell($non_cum_w, $subheader_h, '', 1, 0, 'C', true);
+            $groups = [
+                ['label' => '', 'start' => 0, 'count' => 1, 'bg' => $header_bg],
+                ['label' => '3RD TERM', 'start' => 1, 'count' => 7, 'bg' => [52, 73, 94]],
+                ['label' => 'PRIOR TERMS', 'start' => 8, 'count' => 2, 'bg' => [93, 109, 126]],
+                ['label' => 'CUMULATIVE', 'start' => 10, 'count' => 4, 'bg' => [8, 60, 120]],
+            ];
 
-        $y += $subheader_h;
+            foreach ($groups as $group) {
+                $x = $lm;
+                for ($i = 0; $i < $group['start']; $i++) $x += $cols[$i][1];
+                $w = 0;
+                for ($i = $group['start']; $i < $group['start'] + $group['count']; $i++) $w += $cols[$i][1];
+                $pdf->SetXY($x, $y);
+                $pdf->SetFillColor(...$group['bg']);
+                $pdf->SetDrawColor(0, 0, 0);
+                $pdf->SetTextColor(255, 255, 255);
+                $pdf->SetFont('dejavusans', 'B', 6.2);
+                $pdf->Cell($w, $subheader_h, $group['label'], 1, 0, 'C', true);
+            }
 
-        // Main header row
-        $this->draw_header_row($pdf, $cols, $lm, $y, $header_h, $header_bg);
+            $y += $subheader_h;
+            $this->draw_header_row($pdf, $cols, $lm, $y, $header_h, $header_bg);
+        } else {
+            $cols = [
+                ['SUBJECT', 60, false],
+                ['CA\n(20)', 16, false],
+                ['1ST EXAM\n(30)', 18, false],
+                ['2ND EXAM\n(50)', 18, false],
+                ['TOTAL\n(100)', 20, false],
+                ['AVG', 18, false],
+                ['GRADE', 17, false],
+                ['POSITION', 23, false],
+            ];
+            $this->draw_header_row($pdf, $cols, $lm, $y, 18, $header_bg);
+            $header_h = 18;
+        }
+
         $pdf->SetXY($lm, $y + $header_h);
         $pdf->SetTextColor(0, 0, 0);
-
-        // Data rows
-        $this->draw_standard_third_term_rows($pdf, $organized, $cols, $lm);
+        $this->draw_standard_third_term_rows($pdf, $organized, $cols, $lm, $complete);
 
         $pdf->SetDrawColor(0, 0, 0);
         $pdf->SetFillColor(255, 255, 255);
@@ -270,52 +283,54 @@ class SRL_PDF_Generator {
         $pdf->SetY($pdf->GetY() + 2);
     }
 
-    private function draw_standard_third_term_rows($pdf, $organized, $cols, $lm) {
-        $row_h  = 6;
+    private function draw_standard_third_term_rows($pdf, $organized, $cols, $lm, $complete) {
+        $row_h = 6;
         $row_num = 0;
 
         foreach ($organized['subjects'] as $subject_name => $subject_data) {
             $row_num++;
             $bg = ($row_num % 2 === 0) ? [249, 249, 249] : [255, 255, 255];
+            $terms = $this->extract_term_totals($subject_data['direct_mods'] ?? [], $subject_name);
+            $components = $this->extract_third_term_components($subject_data['third_subcat_mods'] ?? []);
+            $third = $subject_data['third_subcat'] ?? null;
+            $parent = $subject_data['category'] ?? [];
 
-            $terms      = $this->extract_term_totals($subject_data['direct_mods'], $subject_name);
-            $components = $this->extract_third_term_components($subject_data['third_subcat_mods']);
-
-            $third_subcat     = $subject_data['third_subcat'];
-            $third_total_fmt  = $third_subcat ? $third_subcat['gradeformatted'] : '-';
-            $third_pos        = ($third_subcat && ($third_subcat['rank'] ?? 0) > 0)
-                                    ? $this->format_position($third_subcat['rank'])
-                                    : 'N/A';
-
-            $parent         = $subject_data['category'];
-            $cum_total_fmt  = $parent['gradeformatted'];
-            $cum_pos        = (($parent['rank'] ?? 0) > 0)
-                                    ? $this->format_position($parent['rank'])
-                                    : 'N/A';
-
-            $cum_avg_data   = $this->calc_cum_avg($terms, $third_subcat['graderaw'] ?? null);
-            $cum_avg_fmt    = $cum_avg_data['avg'] !== null
-                                    ? number_format($cum_avg_data['avg'], 2)
-                                    : '-';
-            $cum_grade      = $cum_avg_data['avg'] !== null
-                                    ? $this->derive_grade($cum_avg_data['avg'])
-                                    : '-';
+            $third_total = $third['gradeformatted'] ?? '-';
+            $third_avg = $third['averageformatted'] ?? '-';
+            $third_grade = (!empty($third['lettergradeformatted']) && $third['lettergradeformatted'] !== '-')
+                ? $third['lettergradeformatted']
+                : $this->derive_grade($third['graderaw'] ?? null);
+            $third_pos = (($third['rank'] ?? 0) > 0) ? $this->format_position($third['rank']) : 'N/A';
 
             $row_values = [
                 $subject_name,
-                $terms['term1']['formatted'],
-                $terms['term2']['formatted'],
                 $components['ca'],
                 $components['exam1'],
                 $components['exam2'],
-                $third_total_fmt,
-                $cum_total_fmt,
-                $cum_avg_fmt,
-                $cum_grade,
-                $cum_pos,
+                $third_total,
+                $third_avg,
+                $third_grade,
+                $third_pos,
             ];
 
-            $this->draw_data_row($pdf, $cols, $lm, $row_values, $row_h, $bg, [6, 7, 8, 9, 10]);
+            if ($complete) {
+                $cum_avg = SRL_Grade_Organizer::normalized_percentage($parent);
+                $cum_grade = (!empty($parent['lettergradeformatted']) && $parent['lettergradeformatted'] !== '-')
+                    ? $parent['lettergradeformatted']
+                    : $this->derive_grade($cum_avg);
+                $cum_pos = (($parent['rank'] ?? 0) > 0) ? $this->format_position($parent['rank']) : 'N/A';
+                $row_values = array_merge($row_values, [
+                    $terms['term1']['formatted'],
+                    $terms['term2']['formatted'],
+                    $parent['gradeformatted'] ?? '-',
+                    $cum_avg,
+                    $cum_grade,
+                    $cum_pos,
+                ]);
+            }
+
+            $bold_indices = $complete ? [4, 7, 10, 11, 12, 13] : [4, 7];
+            $this->draw_data_row($pdf, $cols, $lm, $row_values, $row_h, $bg, $bold_indices);
         }
     }
 
@@ -483,44 +498,76 @@ class SRL_PDF_Generator {
     // 3RD TERM PERFORMANCE SUMMARY (6 boxes)
     // =========================================================================
 
-    private function render_third_term_performance_summary($organized) {
+    private function render_third_term_performance_summary($organized, $is_exit_class = false) {
         $total = $organized['course_total'];
         if (!$total) return '';
 
-        $position   = $this->format_position($total['rank'] ?? null) . ' out of ' . ($total['numusers'] ?? 'N/A');
-        $obtained   = $total['gradeformatted'];
-        $obtainable = $total['grademax'];
-        $pct        = $total['percentageformatted'];
+        // Keep the existing exit-class behavior untouched until the dedicated
+        // JSS3/SS3 pass requested after the standard 3rd-term fixes.
+        if ($is_exit_class) {
+            $position   = $this->format_position($total['rank'] ?? null) . ' out of ' . ($total['numusers'] ?? 'N/A');
+            $obtained   = $total['gradeformatted'];
+            $obtainable = $total['grademax'];
+            $pct        = $total['percentageformatted'];
+            $cum = $this->calc_overall_cumulative_summary($organized['subjects']);
+            $boxes = [
+                ['#003580', 'POSITION (3RD)',         $position],
+                ['#5d2d91', 'TOTAL OBTAINED (3RD)',   $obtained],
+                ['#0072bc', 'TOTAL OBTAINABLE (3RD)', $obtainable],
+                ['#008a76', 'PERCENTAGE (3RD)',       $pct],
+                ['#b5451b', 'CUMULATIVE TOTAL',       $cum['total']],
+                ['#7d6608', 'CUMULATIVE AVERAGE',     $cum['avg']],
+            ];
+            return $this->render_summary_boxes('Performance Summary', $boxes);
+        }
 
-        // Overall cumulative avg = sum of subject cum avgs / subject count
-        $cum = $this->calc_overall_cumulative_summary($organized['subjects']);
+        $complete = SRL_Grade_Organizer::has_complete_term_history($organized['subjects']);
+        $third = SRL_Grade_Organizer::calc_third_term_summary($organized['subjects']);
 
         $html  = $this->section_header('Performance Summary');
         $html .= $this->spacer(3);
+        $html .= '<div style="font-size:8px;font-weight:bold;color:#2c3e50;margin-bottom:2px;">3RD TERM</div>';
+        $html .= $this->render_summary_box_row([
+            ['#003580', 'POSITION', 'N/A'],
+            ['#5d2d91', 'TOTAL OBTAINED', $third['obtained']],
+            ['#0072bc', 'TOTAL OBTAINABLE', $third['obtainable']],
+            ['#008a76', 'PERCENTAGE', $third['percentage']],
+            ['#b5451b', 'AVERAGE', $third['average']],
+        ]);
 
-        $boxes = [
-            ['#003580', 'POSITION (3RD)',         $position],
-            ['#5d2d91', 'TOTAL OBTAINED (3RD)',   $obtained],
-            ['#0072bc', 'TOTAL OBTAINABLE (3RD)', $obtainable],
-            ['#008a76', 'PERCENTAGE (3RD)',        $pct],
-            ['#b5451b', 'CUMULATIVE TOTAL',        $cum['total']],
-            ['#7d6608', 'CUMULATIVE AVERAGE',      $cum['avg']],
-        ];
-
-        $html .= '<table style="width:100%; margin-bottom:3px; border-collapse:collapse;"><tr>';
-        foreach ($boxes as [$bg, $label, $value]) {
-            $html .= '<td bgcolor="' . $bg . '" style="width:16.66%; border:1px solid #000; text-align:center; color:#ffffff;">
-                <table width="100%" cellpadding="0" cellspacing="0"><tr>
-                    <td style="height:40px; text-align:center; vertical-align:middle; font-weight:bold;">
-                        <div style="font-size:6px; line-height:5px; margin-bottom:0;">' . $label . '</div>
-                        <div style="font-size:11px;">' . $value . '</div>
-                    </td>
-                </tr></table>
-            </td>';
+        if ($complete) {
+            $position = $this->format_position($total['rank'] ?? null) . ' out of ' . ($total['numusers'] ?? 'N/A');
+            $cum_avg = SRL_Grade_Organizer::normalized_percentage($total);
+            $html .= $this->spacer(4);
+            $html .= '<div style="font-size:8px;font-weight:bold;color:#2c3e50;margin-bottom:2px;">CUMULATIVE</div>';
+            $html .= $this->render_summary_box_row([
+                ['#003580', 'POSITION', $position],
+                ['#5d2d91', 'TOTAL OBTAINED', $total['gradeformatted']],
+                ['#0072bc', 'TOTAL OBTAINABLE', $total['grademax']],
+                ['#008a76', 'PERCENTAGE', $total['percentageformatted']],
+                ['#b5451b', 'AVERAGE', $cum_avg],
+            ]);
         }
-        $html .= '</tr></table>';
 
         return $html;
+    }
+
+    private function render_summary_box_row($boxes) {
+        $width = 100 / max(1, count($boxes));
+        $html = '<table style="width:100%; margin-bottom:3px; border-collapse:collapse;"><tr>';
+        foreach ($boxes as [$bg, $label, $value]) {
+            $html .= '<td bgcolor="' . $bg . '" style="width:' . $width . '%; border:1px solid #000; text-align:center; color:#ffffff;">'
+                . '<table width="100%" cellpadding="0" cellspacing="0"><tr><td style="height:40px;text-align:center;vertical-align:middle;font-weight:bold;">'
+                . '<div style="font-size:6px;line-height:5px;margin-bottom:0;">' . $label . '</div>'
+                . '<div style="font-size:10px;">' . $value . '</div>'
+                . '</td></tr></table></td>';
+        }
+        return $html . '</tr></table>';
+    }
+
+    private function render_summary_boxes($title, $boxes) {
+        $html = $this->section_header($title) . $this->spacer(3);
+        return $html . $this->render_summary_box_row($boxes);
     }
 
     /**
