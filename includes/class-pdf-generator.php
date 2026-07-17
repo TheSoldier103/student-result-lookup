@@ -247,8 +247,8 @@ class SRL_PDF_Generator {
         $this->draw_summary_label($pdf, '3RD TERM');
         $this->draw_summary_card_row($pdf, [
             ['POSITION', $third_position, [0, 53, 128]],
-            ['TOTAL OBTAINED', $third['obtained'], [93, 45, 145]],
-            ['TOTAL OBTAINABLE', $third['obtainable'], [0, 114, 188]],
+            ['TOTAL OBTAINED', $third_obtained_value, [93, 45, 145]],
+            ['TOTAL OBTAINABLE', $third_obtainable_value, [0, 114, 188]],
             ['PERCENTAGE', $third['percentage'], [0, 138, 118]],
         ]);
 
@@ -258,7 +258,7 @@ class SRL_PDF_Generator {
 
             $cum_position = $this->format_position($total['rank'] ?? null) . ' out of ' . ($total['numusers'] ?? 'N/A');
             $cum_obtained_value = is_numeric(str_replace(',', '', (string)($total['gradeformatted'] ?? '')))
-                ? number_format((float)str_replace(',', '', (string)$total['gradeformatted']), 0)
+                ? number_format((float)str_replace(',', '', (string)$total['gradeformatted']), 2)
                 : ($total['gradeformatted'] ?? 'N/A');
             $cum_obtainable_value = is_numeric($total['grademax'] ?? null)
                 ? number_format((float)$total['grademax'], 0)

@@ -106,9 +106,10 @@ public static function display_grades($token, $moodle_endpoint, $student_id, $co
                 $cum_obtained = is_numeric(str_replace(',', '', (string)($total['gradeformatted'] ?? '')))
                     ? number_format(
                         (float)str_replace(',', '', $total['gradeformatted']),
-                        0
+                        2
                     )
                     : ($total['gradeformatted'] ?? 'N/A');
+                
 
                 $cum_obtainable = is_numeric($total['grademax'] ?? null)
                     ? number_format((float)$total['grademax'], 0)
