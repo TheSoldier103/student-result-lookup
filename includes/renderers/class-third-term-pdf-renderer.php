@@ -169,16 +169,17 @@ trait SRL_Third_Term_PDF_Renderer {
                 ['POSITION', 14, false],
                 ['1ST TERM\n(100)', 16, false],
                 ['2ND TERM\n(100)', 16, false],
-                ['TOTAL\n(300)', 17, false],
-                ['GRADE', 11, false],
-                ['POSITION', 13, false],
+                ['TOTAL\n(300)', 15, false],
+                ['AVG', 11, false],
+                ['GRADE', 10, false],
+                ['POSITION', 12, false],
             ];
 
             $groups = [
                 ['label' => '', 'start' => 0, 'count' => 1, 'bg' => $header_bg],
                 ['label' => '3RD TERM', 'start' => 1, 'count' => 6, 'bg' => [52, 73, 94]],
                 ['label' => 'PRIOR TERMS', 'start' => 7, 'count' => 2, 'bg' => [93, 109, 126]],
-                ['label' => 'CUMULATIVE', 'start' => 9, 'count' => 3, 'bg' => [8, 60, 120]],
+                ['label' => 'CUMULATIVE', 'start' => 9, 'count' => 4, 'bg' => [8, 60, 120]],
             ];
 
             foreach ($groups as $group) {
@@ -228,6 +229,7 @@ trait SRL_Third_Term_PDF_Renderer {
                 9 => [8, 60, 120],
                 10 => [8, 60, 120],
                 11 => [8, 60, 120],
+                12 => [8, 60, 120],
             ];
             $this->draw_header_row($pdf, $cols, $lm, $y, $header_h, $header_bg, $column_header_colors);
         } else {
@@ -296,12 +298,13 @@ trait SRL_Third_Term_PDF_Renderer {
                     $terms['term1']['formatted'],
                     $terms['term2']['formatted'],
                     $parent['gradeformatted'] ?? '-',
+                    $cum_avg,
                     $cum_grade,
                     $cum_pos,
                 ]);
             }
 
-            $bold_indices = $complete ? [4, 7, 10, 11, 12, 13] : [4, 7];
+            $bold_indices = $complete ? [4, 7, 9, 11, 12] : [4];
             $this->draw_data_row($pdf, $cols, $lm, $row_values, $row_h, $bg, $bold_indices);
         }
     }
@@ -322,9 +325,10 @@ trait SRL_Third_Term_PDF_Renderer {
                 ['POSITION', 18, false],
                 ['1ST TERM\n(100)', 18, false],
                 ['2ND TERM\n(100)', 18, false],
-                ['TOTAL\n(300)', 20, false],
-                ['GRADE', 14, false],
-                ['POSITION', 18, false],
+                ['TOTAL\n(300)', 18, false],
+                ['AVG', 14, false],
+                ['GRADE', 13, false],
+                ['POSITION', 17, false],
             ];
 
             $table_w = 0;
@@ -335,7 +339,7 @@ trait SRL_Third_Term_PDF_Renderer {
                 ['label' => '', 'start' => 0, 'count' => 1, 'bg' => $header_bg],
                 ['label' => '3RD TERM', 'start' => 1, 'count' => 3, 'bg' => $header_bg],
                 ['label' => 'PRIOR TERMS', 'start' => 4, 'count' => 2, 'bg' => $prior_bg],
-                ['label' => 'CUMULATIVE', 'start' => 6, 'count' => 3, 'bg' => $cum_bg],
+                ['label' => 'CUMULATIVE', 'start' => 6, 'count' => 4, 'bg' => $cum_bg],
             ];
 
             $subheader_h = 6;
@@ -365,6 +369,7 @@ trait SRL_Third_Term_PDF_Renderer {
                 6 => $cum_bg,
                 7 => $cum_bg,
                 8 => $cum_bg,
+                9 => $cum_bg,
             ];
             $this->draw_header_row($pdf, $cols, $lm, $y, $header_h, $header_bg, $column_header_colors);
         } else {
@@ -430,12 +435,13 @@ trait SRL_Third_Term_PDF_Renderer {
                     $terms['term1']['formatted'],
                     $terms['term2']['formatted'],
                     $parent['gradeformatted'] ?? '-',
+                    $cum_avg,
                     $cum_grade,
                     $cum_pos,
                 ]);
             }
 
-            $bold_indices = $complete ? [1, 4, 6, 7, 8] : [1];
+            $bold_indices = $complete ? [1, 4, 6, 8, 9] : [1];
             $this->draw_data_row($pdf, $cols, $lm, $row_values, $row_h, $bg, $bold_indices);
         }
 

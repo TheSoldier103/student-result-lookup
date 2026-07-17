@@ -92,7 +92,7 @@ class SRL_Third_Term_Web_Renderer {
                 . '<th rowspan="2" style="padding:6px;text-align:left;border:1px solid #ccc;">Subject</th>'
                 . '<th colspan="3" style="padding:6px;border:1px solid #ccc;background:#34495e;">3RD TERM</th>'
                 . '<th colspan="2" style="padding:6px;border:1px solid #ccc;background:#5d6d7e;">PRIOR TERMS</th>'
-                . '<th colspan="3" style="padding:6px;border:1px solid #ccc;background:#083c78;">CUMULATIVE</th>'
+                . '<th colspan="4" style="padding:6px;border:1px solid #ccc;background:#083c78;">CUMULATIVE</th>'
                 . '</tr>';
 
             echo '<tr style="color:#fff;text-align:center;">'
@@ -102,6 +102,7 @@ class SRL_Third_Term_Web_Renderer {
                 . '<th style="padding:5px;border:1px solid #ccc;background:#5d6d7e;">1st Term (100)</th>'
                 . '<th style="padding:5px;border:1px solid #ccc;background:#5d6d7e;">2nd Term (100)</th>'
                 . '<th style="padding:5px;border:1px solid #ccc;background:#083c78;">Total (300)</th>'
+                . '<th style="padding:5px;border:1px solid #ccc;background:#083c78;">Avg</th>'
                 . '<th style="padding:5px;border:1px solid #ccc;background:#083c78;">Grade</th>'
                 . '<th style="padding:5px;border:1px solid #ccc;background:#083c78;">Position</th>'
                 . '</tr>';
@@ -158,10 +159,12 @@ class SRL_Third_Term_Web_Renderer {
                     ? srl_format_position($parent['rank'])
                     : 'N/A';
 
+                $cum_avg = srl_normalized_percentage($parent);
                 $cells = array_merge($cells, [
                     $terms['term1']['formatted'],
                     $terms['term2']['formatted'],
                     $parent['gradeformatted'] ?? '-',
+                    $cum_avg,
                     $cum_grade,
                     $cum_pos,
                 ]);
@@ -197,7 +200,7 @@ public static function render_standard_third_term_subject_table($subjects) {
 '
             . '<th colspan="2" style="padding:6px;border:1px solid #ccc;background:#5d6d7e;">PRIOR TERMS</th>
 '
-            . '<th colspan="3" style="padding:6px;border:1px solid #ccc;background:#083c78;">CUMULATIVE</th>
+            . '<th colspan="4" style="padding:6px;border:1px solid #ccc;background:#083c78;">CUMULATIVE</th>
 '
             . '</tr>';
         echo '<tr style="background:#34495e;color:#fff;text-align:center;">
