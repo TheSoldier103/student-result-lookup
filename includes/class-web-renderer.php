@@ -218,11 +218,11 @@ public static function render_standard_third_term_subject_table($subjects) {
 '
             . '<th rowspan="2" style="padding:6px;text-align:left;border:1px solid #ccc;">Subject</th>
 '
-            . '<th colspan="7" style="padding:6px;border:1px solid #ccc;background:#34495e;">3RD TERM</th>
+            . '<th colspan="6" style="padding:6px;border:1px solid #ccc;background:#34495e;">3RD TERM</th>
 '
             . '<th colspan="2" style="padding:6px;border:1px solid #ccc;background:#5d6d7e;">PRIOR TERMS</th>
 '
-            . '<th colspan="4" style="padding:6px;border:1px solid #ccc;background:#083c78;">CUMULATIVE</th>
+            . '<th colspan="3" style="padding:6px;border:1px solid #ccc;background:#083c78;">CUMULATIVE</th>
 '
             . '</tr>';
         echo '<tr style="background:#34495e;color:#fff;text-align:center;">
