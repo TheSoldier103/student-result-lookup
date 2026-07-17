@@ -18,15 +18,6 @@ class SRL_Ranking_Admin {
             'dashicons-welcome-learn-more',
             58
         );
-
-        add_submenu_page(
-            'srl-results',
-            '3rd Term Rankings',
-            '3rd Term Rankings',
-            'manage_options',
-            'srl-third-term-rankings',
-            [__CLASS__, 'render_page']
-        );
     }
 
     public static function enqueue_assets($hook) {
@@ -67,8 +58,15 @@ class SRL_Ranking_Admin {
         $selected_course = absint($_REQUEST['srl_course_id'] ?? 0);
 
         $courses = array_values(array_filter($all_third, function($course) use ($selected_session) {
-            return $selected_session === '' || strcasecmp((string)($course['session'] ?? ''), $selected_session) === 0;
+            return $selected_session === ''
+                || strcasecmp((string)($course['session'] ?? ''), $selected_session) === 0;
         }));
+
+        // Course lookup lets the stored ranking rows display friendly Moodle names.
+        $course_lookup = [];
+        foreach ((array)$all_third as $course) {
+            $course_lookup[(int)$course['id']] = $course;
+        }
 
         $message = '';
         $error = '';
@@ -90,36 +88,99 @@ class SRL_Ranking_Admin {
             }
         }
 
-        $preview = $selected_course ? SRL_Ranking_Repository::get_course_rankings($selected_course) : [];
-        $meta = $selected_course ? SRL_Ranking_Repository::get_course_meta($selected_course) : null;
+        $calculated_courses = SRL_Ranking_Repository::get_calculated_courses($selected_session);
+        $preview = $selected_course
+            ? SRL_Ranking_Repository::get_course_rankings($selected_course)
+            : [];
+        $meta = $selected_course
+            ? SRL_Ranking_Repository::get_course_meta($selected_course)
+            : null;
 
         echo '<div class="wrap srl-admin-wrap">';
         echo '<h1>3rd Term Rankings</h1>';
-        echo '<p>Calculate and store overall 3rd-term positions for a selected class/course.</p>';
+        echo '<p>View calculated courses and calculate or update overall 3rd-term positions.</p>';
 
-        if ($message) echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($message) . '</p></div>';
-        if ($error) echo '<div class="notice notice-error"><p>' . esc_html($error) . '</p></div>';
+        if ($message) {
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($message) . '</p></div>';
+        }
+        if ($error) {
+            echo '<div class="notice notice-error"><p>' . esc_html($error) . '</p></div>';
+        }
+
+        // Session filter shared by the calculated-course list and calculation form.
+        echo '<form method="get" style="margin:18px 0;">';
+        echo '<input type="hidden" name="page" value="srl-results">';
+        echo '<label for="srl_session_filter" style="display:block;margin-bottom:6px;"><strong>Session</strong></label>';
+        echo '<select name="srl_session" id="srl_session_filter" onchange="this.form.submit()" style="min-width:260px;">';
+        foreach ($sessions as $session) {
+            echo '<option value="' . esc_attr($session) . '" '
+                . selected($selected_session, $session, false) . '>'
+                . esc_html($session)
+                . '</option>';
+        }
+        echo '</select>';
+        echo '</form>';
+
+        echo '<h2>Calculated Courses</h2>';
+
+        if ($calculated_courses) {
+            echo '<div class="srl-ranking-table-wrap">';
+            echo '<table class="widefat striped srl-ranking-table">';
+            echo '<thead><tr>
+                <th>Course</th>
+                <th>Students Ranked</th>
+                <th>Last Calculated</th>
+                <th>Actions</th>
+            </tr></thead><tbody>';
+
+            foreach ($calculated_courses as $row) {
+                $course_id = (int)$row['course_id'];
+                $course = $course_lookup[$course_id] ?? null;
+
+                $course_name = $course
+                    ? trim(($course['class'] ?? '') . ' — ' . ($course['fullname'] ?? ''))
+                    : 'Course #' . $course_id;
+
+                $view_url = add_query_arg([
+                    'page' => 'srl-results',
+                    'srl_session' => $selected_session,
+                    'srl_course_id' => $course_id,
+                ], admin_url('admin.php'));
+
+                echo '<tr>';
+                echo '<td><strong>' . esc_html($course_name) . '</strong></td>';
+                echo '<td>' . (int)$row['student_count'] . '</td>';
+                echo '<td>' . esc_html($row['calculated_at']) . '</td>';
+                echo '<td><a class="button button-secondary" href="' . esc_url($view_url) . '">View Rankings</a></td>';
+                echo '</tr>';
+            }
+
+            echo '</tbody></table></div>';
+        } else {
+            echo '<p>No rankings have been calculated for this session yet.</p>';
+        }
+
+        echo '<hr style="margin:28px 0;">';
+        echo '<h2>Calculate Rankings</h2>';
+        echo '<p>Select a 3rd-term course to calculate its rankings. Selecting an already calculated course will update its stored rankings.</p>';
 
         echo '<form method="post" class="srl-ranking-form">';
         wp_nonce_field('srl_calculate_rankings');
 
-        echo '<div class="srl-admin-field">';
-        echo '<label for="srl_session"><strong>Session</strong></label>';
-        echo '<select name="srl_session" id="srl_session" onchange="this.form.submit()">';
-        foreach ($sessions as $session) {
-            echo '<option value="' . esc_attr($session) . '" ' . selected($selected_session, $session, false) . '>' . esc_html($session) . '</option>';
-        }
-        echo '</select></div>';
+        echo '<input type="hidden" name="srl_session" value="' . esc_attr($selected_session) . '">';
 
         echo '<div class="srl-admin-field">';
         echo '<label for="srl_course_id"><strong>3rd Term Course</strong></label>';
         echo '<select name="srl_course_id" id="srl_course_id" required>';
         echo '<option value="">Select a course</option>';
+
         foreach ($courses as $course) {
-            echo '<option value="' . (int)$course['id'] . '" ' . selected($selected_course, (int)$course['id'], false) . '>'
+            echo '<option value="' . (int)$course['id'] . '" '
+                . selected($selected_course, (int)$course['id'], false) . '>'
                 . esc_html(($course['class'] ?? '') . ' — ' . ($course['fullname'] ?? ''))
                 . '</option>';
         }
+
         echo '</select></div>';
 
         echo '<div class="srl-admin-actions">';
@@ -132,7 +193,7 @@ class SRL_Ranking_Admin {
         echo '</div>';
         echo '</form>';
 
-        if ($meta) {
+        if ($meta && $selected_course) {
             echo '<div class="srl-ranking-meta">';
             echo '<strong>Last calculated:</strong> ' . esc_html($meta['calculated_at']) . ' &nbsp; ';
             echo '<strong>Students ranked:</strong> ' . (int)$meta['student_count'];
@@ -140,7 +201,7 @@ class SRL_Ranking_Admin {
         }
 
         if ($preview) {
-            echo '<h2>Preview</h2>';
+            echo '<h2>Ranking Preview</h2>';
             echo '<div class="srl-ranking-table-wrap"><table class="widefat striped srl-ranking-table">';
             echo '<thead><tr>
                 <th>Position</th>
@@ -155,7 +216,7 @@ class SRL_Ranking_Admin {
                 echo '<td><strong>' . esc_html(SRL_Grade_Organizer::format_position($row['position_num'])) . '</strong></td>';
                 echo '<td>' . esc_html($row['student_name']) . '</td>';
                 echo '<td>' . esc_html(number_format((float)$row['total_obtained'], 2)) . '</td>';
-                echo '<td>' . esc_html(number_format((float)$row['total_obtainable'], 2)) . '</td>';
+                echo '<td>' . esc_html(number_format((float)$row['total_obtainable'], 0)) . '</td>';
                 echo '<td>' . esc_html(number_format((float)$row['percentage'], 2)) . '%</td>';
                 echo '</tr>';
             }

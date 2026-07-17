@@ -91,6 +91,29 @@ class SRL_Ranking_Repository {
         );
     }
 
+
+    public static function get_calculated_courses($session = '') {
+        global $wpdb;
+        $table = self::table_name();
+
+        $sql = "SELECT
+                    course_id,
+                    session,
+                    MAX(calculated_at) AS calculated_at,
+                    COUNT(*) AS student_count
+                FROM {$table}
+                WHERE term = '3rd Term'";
+
+        if ($session !== '') {
+            $sql .= $wpdb->prepare(" AND session = %s", $session);
+        }
+
+        $sql .= " GROUP BY course_id, session
+                  ORDER BY calculated_at DESC, course_id ASC";
+
+        return $wpdb->get_results($sql, ARRAY_A);
+    }
+
     public static function get_course_meta($course_id) {
         global $wpdb;
         return $wpdb->get_row(
