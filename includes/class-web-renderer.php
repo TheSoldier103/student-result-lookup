@@ -387,7 +387,7 @@ public static function render_third_term_subject_table($subjects) {
         <th style="padding:6px;border:1px solid #ccc;">3rd Term Total (100)</th>
         <th style="padding:6px;border:1px solid #ccc;">Grade (3rd)</th>
         <th style="padding:6px;border:1px solid #ccc;">Position (3rd)</th>
-        <th style="padding:6px;border:1px solid #ccc;">1st Term (100)</th>
+        <th style="padding:6px;border:1px solid #ccc;background:#5d6d7e;">1st Term (100)</th>
         <th style="padding:6px;border:1px solid #ccc;">2nd Term (100)</th>
         <th style="padding:6px;border:1px solid #ccc;">Cum. Total</th>
         <th style="padding:6px;border:1px solid #ccc;">Cum. Avg</th>
