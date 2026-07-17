@@ -221,26 +221,24 @@ class SRL_PDF_Generator {
             // compact/rotated headers for the dense cumulative report.
             $cols = [
                 ['SUBJECT', 34, false],
-                ['CA\n(20)', 10, true],
-                ['1ST EXAM\n(30)', 10, true],
-                ['2ND EXAM\n(50)', 10, true],
-                ['TOTAL\n(100)', 11, true],
-                ['AVG', 10, true],
-                ['GRADE', 9, true],
-                ['POSITION', 12, true],
-                ['1ST TERM\n(100)', 12, true],
-                ['2ND TERM\n(100)', 12, true],
-                ['TOTAL\n(300)', 13, true],
-                ['AVG', 10, true],
-                ['GRADE', 9, true],
-                ['POSITION', 14, true],
+                ['CA\n(20)', 10, false],
+                ['1ST EXAM\n(30)', 10, false],
+                ['2ND EXAM\n(50)', 10, false],
+                ['TOTAL\n(100)', 11, false],
+                ['GRADE', 9, false],
+                ['POSITION', 12, false],
+                ['1ST TERM\n(100)', 12, false],
+                ['2ND TERM\n(100)', 12, false],
+                ['TOTAL\n(300)', 13, false],
+                ['GRADE', 9, false],
+                ['POSITION', 14, false],
             ];
 
             $groups = [
                 ['label' => '', 'start' => 0, 'count' => 1, 'bg' => $header_bg],
-                ['label' => '3RD TERM', 'start' => 1, 'count' => 7, 'bg' => [52, 73, 94]],
-                ['label' => 'PRIOR TERMS', 'start' => 8, 'count' => 2, 'bg' => [93, 109, 126]],
-                ['label' => 'CUMULATIVE', 'start' => 10, 'count' => 4, 'bg' => [8, 60, 120]],
+                ['label' => '3RD TERM', 'start' => 1, 'count' => 6, 'bg' => [52, 73, 94]],
+                ['label' => 'PRIOR TERMS', 'start' => 7, 'count' => 2, 'bg' => [93, 109, 126]],
+                ['label' => 'CUMULATIVE', 'start' => 9, 'count' => 3, 'bg' => [8, 60, 120]],
             ];
 
             foreach ($groups as $group) {
@@ -265,7 +263,6 @@ class SRL_PDF_Generator {
                 ['1ST EXAM\n(30)', 18, false],
                 ['2ND EXAM\n(50)', 18, false],
                 ['TOTAL\n(100)', 20, false],
-                ['AVG', 18, false],
                 ['GRADE', 17, false],
                 ['POSITION', 23, false],
             ];
@@ -296,7 +293,6 @@ class SRL_PDF_Generator {
             $parent = $subject_data['category'] ?? [];
 
             $third_total = $third['gradeformatted'] ?? '-';
-            $third_avg = $third['averageformatted'] ?? '-';
             $third_grade = (!empty($third['lettergradeformatted']) && $third['lettergradeformatted'] !== '-')
                 ? $third['lettergradeformatted']
                 : $this->derive_grade($third['graderaw'] ?? null);
@@ -308,7 +304,6 @@ class SRL_PDF_Generator {
                 $components['exam1'],
                 $components['exam2'],
                 $third_total,
-                $third_avg,
                 $third_grade,
                 $third_pos,
             ];
@@ -323,7 +318,6 @@ class SRL_PDF_Generator {
                     $terms['term1']['formatted'],
                     $terms['term2']['formatted'],
                     $parent['gradeformatted'] ?? '-',
-                    $cum_avg,
                     $cum_grade,
                     $cum_pos,
                 ]);
@@ -532,7 +526,6 @@ class SRL_PDF_Generator {
             ['#5d2d91', 'TOTAL OBTAINED', $third['obtained']],
             ['#0072bc', 'TOTAL OBTAINABLE', $third['obtainable']],
             ['#008a76', 'PERCENTAGE', $third['percentage']],
-            ['#b5451b', 'AVERAGE', $third['average']],
         ]);
 
         if ($complete) {
@@ -545,7 +538,6 @@ class SRL_PDF_Generator {
                 ['#5d2d91', 'TOTAL OBTAINED', $total['gradeformatted']],
                 ['#0072bc', 'TOTAL OBTAINABLE', $total['grademax']],
                 ['#008a76', 'PERCENTAGE', $total['percentageformatted']],
-                ['#b5451b', 'AVERAGE', $cum_avg],
             ]);
         }
 
@@ -646,7 +638,7 @@ class SRL_PDF_Generator {
         $html .= $this->spacer(2);
         $html .= '<table width="100%" cellpadding="0" cellspacing="0">
         <tr bgcolor="#34495e">
-            <th style="border:1px solid #000; color:#fff; padding:5px; text-align:left; width:25%;">SUBJECT</th>
+            <th style="border:1px solid #000; color:#fff; padding:5px; text-align:center; width:25%;">SUBJECT</th>
             <th style="border:1px solid #000; color:#fff; padding:5px; text-align:center; width:14%;">CONTINUOUS ASSESSMENT<br>(20)</th>
             <th style="border:1px solid #000; color:#fff; padding:5px; text-align:center; width:12%;">1ST EXAM<br>(30)</th>
             <th style="border:1px solid #000; color:#fff; padding:5px; text-align:center; width:12%;">2ND EXAM<br>(50)</th>
@@ -731,7 +723,7 @@ class SRL_PDF_Generator {
     private function render_attendance_and_grade_scale($organized, $announcements) {
         $html = '<table style="width:100%; margin-top:3px; margin-bottom:3px;"><tr>';
 
-        $html .= '<td style="width:48%; vertical-align:top;">';
+        $html .= '<td style="width:48%; vertical-align:middle;">';
         $html .= $this->section_header('Attendance');
         $html .= $this->spacer(2);
         $html .= '<table width="100%" cellpadding="0" cellspacing="0">
@@ -747,7 +739,7 @@ class SRL_PDF_Generator {
 
         $html .= '<td style="width:4%;"></td>';
 
-        $html .= '<td style="width:48%; vertical-align:top;">';
+        $html .= '<td style="width:48%; vertical-align:middle;">';
         $html .= $this->section_header('Grade Scale');
         $html .= $this->spacer(2);
         $html .= '<table width="100%" cellpadding="0" cellspacing="0">

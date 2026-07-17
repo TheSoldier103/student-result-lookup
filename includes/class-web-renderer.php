@@ -70,7 +70,6 @@ public static function display_grades($token, $moodle_endpoint, $student_id, $co
                 ['Total Obtained', $third['obtained']],
                 ['Total Obtainable', $third['obtainable']],
                 ['Percentage', $third['percentage']],
-                ['Average', $third['average']],
             ] as [$label, $value]) {
                 echo '<div class="srl-stat-card"><div class="srl-stat-label">' . esc_html($label) . '</div><div class="srl-stat-value">' . esc_html($value) . '</div></div>';
             }
@@ -88,7 +87,6 @@ public static function display_grades($token, $moodle_endpoint, $student_id, $co
                     ['Total Obtained', $total['gradeformatted']],
                     ['Total Obtainable', $total['grademax']],
                     ['Percentage', $total['percentageformatted']],
-                    ['Average', $cum_avg],
                 ] as [$label, $value]) {
                     echo '<div class="srl-stat-card"><div class="srl-stat-label">' . esc_html($label) . '</div><div class="srl-stat-value">' . esc_html($value) . '</div></div>';
                 }
@@ -289,7 +287,6 @@ public static function render_standard_third_term_subject_table($subjects) {
         $parent = $subject_data['category'] ?? [];
 
         $third_total = $third['gradeformatted'] ?? '-';
-        $third_avg = $third['averageformatted'] ?? '-';
         $third_grade = !empty($third['lettergradeformatted']) && $third['lettergradeformatted'] !== '-'
             ? $third['lettergradeformatted']
             : srl_derive_grade($third['graderaw'] ?? null);
@@ -301,7 +298,6 @@ public static function render_standard_third_term_subject_table($subjects) {
             $components['exam1'],
             $components['exam2'],
             $third_total,
-            $third_avg,
             $third_grade,
             $third_pos,
         ];
@@ -316,7 +312,6 @@ public static function render_standard_third_term_subject_table($subjects) {
                 $terms['term1']['formatted'],
                 $terms['term2']['formatted'],
                 $parent['gradeformatted'] ?? '-',
-                $cum_avg,
                 $cum_grade,
                 $cum_pos,
             ]);
@@ -325,7 +320,7 @@ public static function render_standard_third_term_subject_table($subjects) {
         echo '<tr style="background:' . $bg . ';text-align:center;">';
         foreach ($cells as $i => $value) {
             $align = ($i === 0) ? 'text-align:left;' : '';
-            $bold = in_array($i, [4, 7, 10, 11, 12, 13], true) ? 'font-weight:bold;' : '';
+            $bold = in_array($i, [4, 6, 9, 10, 11], true) ? 'font-weight:bold;' : '';
             echo '<td style="padding:5px;border:1px solid #ddd;' . $align . $bold . '">' . esc_html($value) . '</td>';
         }
         echo '</tr>';
