@@ -54,6 +54,7 @@ public static function display_grades($token, $moodle_endpoint, $student_id, $co
  
     // Student info
     echo '<div class="srl-info-grid">';
+    echo '<div class="srl-info-item"><strong>ID Number:</strong> ' . esc_html($usergrade['useridnumber'] ?? 'N/A') . '</div>';
     echo '<div class="srl-info-item"><strong>Sex:</strong> '     . esc_html($student_data['sex'] ?? 'N/A') . '</div>';
     echo '<div class="srl-info-item"><strong>Class:</strong> '   . esc_html($course_info['class'])          . '</div>';
     echo '<div class="srl-info-item"><strong>Term:</strong> '    . esc_html($course_info['term'])           . '</div>';
@@ -90,7 +91,17 @@ public static function display_grades($token, $moodle_endpoint, $student_id, $co
         echo '<div class="srl-section-title">Attendance Summary</div>';
         echo '<div class="srl-attendance-grid">';
         echo '<div class="srl-attendance-item"><strong>' . esc_html($announcements['days_opened'] ?? 'N/A') . '</strong><span>Days School Opened</span></div>';
-        echo '<div class="srl-attendance-item"><strong>' . esc_html($organized['attendance']['present'] ?? 'N/A') . '</strong><span>Days Present</span></div>';
+        
+        $days_present = $organized['attendance']['present'] ?? null;
+
+        if (is_numeric($days_present)) {
+            $days_present = number_format((float)$days_present, 0);
+        }
+
+        echo '<div class="srl-attendance-item"><strong>'
+            . esc_html($days_present ?? 'N/A')
+            . '</strong><span>Days Present</span></div>';
+
         echo '</div>';
     }
  

@@ -329,7 +329,13 @@ class SRL_PDF_Generator {
             . '<tr><td bgcolor="#f5f5f5" style="border:1px solid #bbb;"><b>Days School Opened:</b></td>'
             . '<td style="text-align:center;border:1px solid #bbb;">' . ($announcements['days_opened'] ?? 'N/A') . '</td></tr>'
             . '<tr><td bgcolor="#f5f5f5" style="border:1px solid #bbb;"><b>Days Present:</b></td>'
-            . '<td style="text-align:center;border:1px solid #bbb;">' . ($organized['attendance']['present'] ?? 'N/A') . '</td></tr>'
+            . '<td style="text-align:center;border:1px solid #bbb;">'
+            . (
+                is_numeric($organized['attendance']['present'] ?? null)
+                    ? number_format((float)$organized['attendance']['present'], 0)
+                    : ($organized['attendance']['present'] ?? 'N/A')
+            )
+            . '</td></tr>'
             . '</table></td>';
 
         $html .= '<td style="width:4%;"></td>';
