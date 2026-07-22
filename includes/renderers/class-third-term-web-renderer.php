@@ -223,8 +223,6 @@ public static function render_standard_third_term_subject_table($subjects) {
 '
             . '<th style="padding:5px;border:1px solid #ccc;background:#083c78;">Total (300)</th>
 '
-            . '<th style="padding:5px;border:1px solid #ccc;background:#083c78;">Avg</th>
-'
             . '<th style="padding:5px;border:1px solid #ccc;background:#083c78;">Grade</th>
 '
             . '<th style="padding:5px;border:1px solid #ccc;background:#083c78;">Position</th>
@@ -282,12 +280,10 @@ public static function render_standard_third_term_subject_table($subjects) {
                 ? $parent['lettergradeformatted']
                 : srl_derive_grade($cum_avg);
             $cum_pos = (($parent['rank'] ?? 0) > 0) ? srl_format_position($parent['rank']) : 'N/A';
-            $cum_avg = srl_normalized_percentage($parent);
             $cells = array_merge($cells, [
                 $terms['term1']['formatted'],
                 $terms['term2']['formatted'],
                 $parent['gradeformatted'] ?? '-',
-                $cum_avg,
                 $cum_grade,
                 $cum_pos,
             ]);

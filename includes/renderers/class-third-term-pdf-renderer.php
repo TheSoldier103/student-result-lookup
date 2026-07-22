@@ -16,7 +16,7 @@ trait SRL_Third_Term_PDF_Renderer {
         // Header first.
         $html  = $this->get_styles();
         $html .= $this->render_page_header($usergrade, $student_data, $course_info);
-        $html .= $this->spacer(3);
+        $html .= $this->spacer(1);
         $pdf->writeHTML($html, true, false, true, false, '');
 
         // Direct TCPDF drawing gives reliable horizontal/vertical centering.
@@ -28,9 +28,9 @@ trait SRL_Third_Term_PDF_Renderer {
         );
 
         // Attendance / grade scale.
-        $html_mid  = $this->spacer(3);
+        $html_mid  = $this->spacer(1);
         $html_mid .= $this->render_attendance_and_grade_scale($organized, $announcements);
-        $html_mid .= $this->spacer(3);
+        $html_mid .= $this->spacer(1);
         $pdf->writeHTML($html_mid, true, false, true, false, '');
 
         if ($is_exit_class) {
@@ -40,9 +40,9 @@ trait SRL_Third_Term_PDF_Renderer {
         }
 
         // Keep the end section compact so complete 3rd-term reports stay on one page.
-        $html2  = $this->spacer(3);
+        $html2  = $this->spacer(1);
         $html2 .= $this->render_remarks($organized, $staff);
-        $html2 .= $this->spacer(2);
+        $html2 .= $this->spacer(1);
         $html2 .= $this->render_announcements($announcements);
         $html2 .= $this->render_footer();
 

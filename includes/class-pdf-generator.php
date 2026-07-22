@@ -63,8 +63,8 @@ class SRL_PDF_Generator {
         $pdf->SetTitle('Report Card - ' . $data['grades_data']['usergrades'][0]['userfullname']);
         $pdf->setPrintHeader(false);
         $pdf->setPrintFooter(false);
-        $pdf->SetMargins(10, 10, 10);
-        $pdf->SetAutoPageBreak(true, 10);
+        $pdf->SetMargins(10, 6, 10);
+        $pdf->SetAutoPageBreak(true, 6);
         $pdf->SetFont('dejavusans', '', 8);
         $pdf->AddPage();
 
@@ -77,7 +77,7 @@ class SRL_PDF_Generator {
         $is_third_term    = ($data['course_info']['term'] === '3rd Term');
         $is_exit_class    = $this->is_exit_class($data['course_info']['class']);
 
-        $pdf->SetY(10);
+        $pdf->SetY(6);
 
         if ($is_third_term) {
             $this->generate_third_term_pdf($pdf, $data, $is_exit_class);
@@ -265,124 +265,143 @@ class SRL_PDF_Generator {
     // =========================================================================
     // SHARED HTML RENDER HELPERS
     // =========================================================================
-
     private function render_page_header($usergrade, $student_data, $course_info) {
-        $html = '<table style="width:100%; border-bottom:2px solid #000; padding-bottom:3px; margin-bottom:3px;"><tr>';
+        $id_number = $usergrade['useridnumber'] ?? ($student_data['idnumber'] ?? 'N/A');
+
+        $html = '<table width="100%" cellpadding="0" cellspacing="0" style="margin:0;padding:0;"><tr>';
 
         if (file_exists($this->logo_path)) {
-            $image_data = base64_encode(file_get_contents($this->logo_path));
-            $html .= '<td style="width:18%;"><img src="@' . $image_data . '" style="width:50px;" /></td>';
+            $html .= '<td width="15%" style="vertical-align:top;text-align:left;">'
+                . '<img src="' . $this->logo_path . '" width="44" />'
+                . '</td>';
         } else {
-            $html .= '<td style="width:18%;"></td>';
+            $html .= '<td width="15%"></td>';
         }
 
-        $html .= '<td style="width:82%; text-align:center;">
-            <h1 style="font-size:16px; font-weight:bold; margin:0;">PETRA CHRISTIAN ACADEMY</h1>
-            <p style="font-size:8px; line-height:5px; font-weight:bold; font-style:italic; margin:1px 0;">Righteousness and Excellence</p>
-            <p style="font-size:8px; line-height:5px; font-weight:bold; margin:1px 0;">Telephone: +2348052755971, +2348166777788</p>
-            <p style="font-size:9px; font-weight:bold; margin:2px 0;">STUDENT REPORT CARD</p>
-        </td></tr></table>';
+        $html .= '<td width="85%" style="text-align:center;vertical-align:top;">'
+            . '<div style="font-size:16px;font-weight:bold;line-height:17px;">PETRA CHRISTIAN ACADEMY</div>'
+            . '<div style="font-size:6.8px;font-style:italic;font-weight:bold;line-height:8px;">Righteousness and Excellence</div>'
+            . '<div style="font-size:6.2px;font-weight:bold;line-height:7px;">Telephone: +2348052755971, +2348166777788</div>'
+            . '<div style="font-size:8.5px;font-weight:bold;line-height:10px;">STUDENT REPORT CARD</div>'
+            . '</td></tr></table>';
 
-        $html .= $this->spacer(2);
-
-        $html .= '<table style="width:100%; background-color:#f5f5f5; border:1px solid #000; margin-top:3px; margin-bottom:3px; font-size:7px;">
-            <tr>
-                <td style="width:12%; padding:5px 3px; border-right:1px solid #ccc;"><strong>Name:</strong></td>
-                <td style="width:38%; padding:5px 3px; border-right:1px solid #ccc;">' . htmlspecialchars($usergrade['userfullname']) . '</td>
-                <td style="width:12%; padding:5px 3px; border-right:1px solid #ccc;"><strong>Class:</strong></td>
-                <td style="width:13%; padding:5px 3px; border-right:1px solid #ccc;">' . htmlspecialchars($course_info['class']) . '</td>
-                <td style="width:12%; padding:5px 3px; border-right:1px solid #ccc;"><strong>Term:</strong></td>
-                <td style="width:13%; padding:5px 3px;">' . htmlspecialchars($course_info['term']) . '</td>
-            </tr>
-            <tr>
-                <td style="padding:5px 3px; border-right:1px solid #ccc; border-top:1px solid #ccc;"><strong>Sex:</strong></td>
-                <td style="padding:5px 3px; border-right:1px solid #ccc; border-top:1px solid #ccc;">' . htmlspecialchars($student_data['sex']) . '</td>
-                <td style="padding:5px 3px; border-right:1px solid #ccc; border-top:1px solid #ccc;"><strong>Session:</strong></td>
-                <td colspan="3" style="padding:5px 3px; border-top:1px solid #ccc;">' . htmlspecialchars($course_info['session']) . '</td>
-            </tr>
-        </table>';
+        $html .= '<table width="100%" cellpadding="1" cellspacing="0" style="font-size:6.3px;line-height:7.4px;border-collapse:collapse;margin-top:1px;">'
+            . '<tr>'
+            . '<td width="11%" style="border:1px solid #999;"><b>Name:</b></td>'
+            . '<td width="27%" style="border:1px solid #999;">' . esc_html($usergrade['userfullname'] ?? 'N/A') . '</td>'
+            . '<td width="13%" style="border:1px solid #999;"><b>ID Number:</b></td>'
+            . '<td width="19%" style="border:1px solid #999;">' . esc_html($id_number) . '</td>'
+            . '<td width="10%" style="border:1px solid #999;"><b>Class:</b></td>'
+            . '<td width="20%" style="border:1px solid #999;">' . esc_html($course_info['class'] ?? 'N/A') . '</td>'
+            . '</tr>'
+            . '<tr>'
+            . '<td style="border:1px solid #999;"><b>Sex:</b></td>'
+            . '<td style="border:1px solid #999;">' . esc_html($student_data['sex'] ?? 'N/A') . '</td>'
+            . '<td style="border:1px solid #999;"><b>Session:</b></td>'
+            . '<td style="border:1px solid #999;">' . esc_html($course_info['session'] ?? 'N/A') . '</td>'
+            . '<td style="border:1px solid #999;"><b>Term:</b></td>'
+            . '<td style="border:1px solid #999;">' . esc_html($course_info['term'] ?? 'N/A') . '</td>'
+            . '</tr></table>';
 
         return $html;
     }
-
     private function render_attendance_and_grade_scale($organized, $announcements) {
-        $html = '<table style="width:100%; margin-top:2px; margin-bottom:2px;"><tr>';
+        $html = '<table style="width:100%;margin-top:1px;margin-bottom:1px;"><tr>';
 
-        $html .= '<td style="width:48%; vertical-align:top;">';
-        $html .= $this->section_header('Attendance');
-        $html .= $this->spacer(1);
-        $html .= '<table width="100%" cellpadding="1" cellspacing="0" style="font-size:6.5px; font-weight:normal;">
-            <tr>
-                <td bgcolor="#f5f5f5" style="border:1px solid #ccc;"><b>Days School Opened:</b></td>
-                <td style="text-align:center; border:1px solid #ccc;">' . ($announcements['days_opened'] ?? 'N/A') . '</td>
-            </tr>
-            <tr>
-                <td bgcolor="#f5f5f5" style="border:1px solid #ccc;"><b>Days Present:</b></td>
-                <td style="text-align:center; border:1px solid #ccc;">' . ($organized['attendance']['present'] ?? 'N/A') . '</td>
-            </tr>
-        </table></td>';
+        $html .= '<td style="width:48%;vertical-align:top;">'
+            . '<div style="background:#34495e;color:#fff;text-align:center;font-size:6.8px;font-weight:bold;line-height:8px;padding:1px;">ATTENDANCE</div>'
+            . '<table width="100%" cellpadding="1" cellspacing="0" style="font-size:5.8px;line-height:6.8px;border-collapse:collapse;">'
+            . '<tr><td bgcolor="#f5f5f5" style="border:1px solid #bbb;"><b>Days School Opened:</b></td>'
+            . '<td style="text-align:center;border:1px solid #bbb;">' . ($announcements['days_opened'] ?? 'N/A') . '</td></tr>'
+            . '<tr><td bgcolor="#f5f5f5" style="border:1px solid #bbb;"><b>Days Present:</b></td>'
+            . '<td style="text-align:center;border:1px solid #bbb;">' . ($organized['attendance']['present'] ?? 'N/A') . '</td></tr>'
+            . '</table></td>';
 
         $html .= '<td style="width:4%;"></td>';
 
-        $html .= '<td style="width:48%; vertical-align:top;">';
-        $html .= $this->section_header('Grade Scale');
-        $html .= $this->spacer(1);
-        $html .= '<table width="100%" cellpadding="1" cellspacing="0" style="font-size:6.2px; font-weight:normal;">
-            <tr bgcolor="#ecf0f1">
-                <th style="text-align:center; border:1px solid #000; font-weight:normal;">GRADE</th>
-                <th style="text-align:center; border:1px solid #000; font-weight:normal;">RANGE</th>
-                <th style="text-align:center; border:1px solid #000; font-weight:normal;">REMARK</th>
-            </tr>';
+        $html .= '<td style="width:48%;vertical-align:top;">'
+            . '<div style="background:#34495e;color:#fff;text-align:center;font-size:6.8px;font-weight:bold;line-height:8px;padding:1px;">GRADE SCALE</div>'
+            . '<table width="100%" cellpadding="1" cellspacing="0" style="font-size:5.6px;line-height:6.5px;border-collapse:collapse;">'
+            . '<tr bgcolor="#ecf0f1">'
+            . '<th style="text-align:center;border:1px solid #bbb;font-weight:bold;">GRADE</th>'
+            . '<th style="text-align:center;border:1px solid #bbb;font-weight:bold;">RANGE</th>'
+            . '<th style="text-align:center;border:1px solid #bbb;font-weight:bold;">REMARK</th>'
+            . '</tr>';
+
         foreach ($this->grade_scale as $grade => $info) {
-            $html .= '<tr>
-                <td style="text-align:center; border:1px solid #ccc; font-weight:normal;">' . $grade . '</td>
-                <td style="text-align:center; border:1px solid #ccc; font-weight:normal;">' . $info['min'] . '-' . $info['max'] . '</td>
-                <td style="text-align:center; border:1px solid #ccc; font-weight:normal;">' . $info['remark'] . '</td>
-            </tr>';
+            $html .= '<tr>'
+                . '<td style="text-align:center;border:1px solid #ccc;">' . $grade . '</td>'
+                . '<td style="text-align:center;border:1px solid #ccc;">' . $info['min'] . '-' . $info['max'] . '</td>'
+                . '<td style="text-align:center;border:1px solid #ccc;">' . $info['remark'] . '</td>'
+                . '</tr>';
         }
+
         $html .= '</table></td></tr></table>';
-
         return $html;
     }
-
     private function render_remarks($organized, $staff) {
-        $html  = $this->section_header('Remarks');
-        $html .= $this->spacer(2);
-        $html .= '<table width="100%" cellpadding="0" cellspacing="0">
-        <tr>
-            <td style="border-left:4px solid #3498db; padding:6px; font-size:8px;">
-                <strong>Class Teacher:</strong> ' . strip_tags($organized['remarks']['teacher']) . '
-                <em>(Signed by: ' . $staff['teacher'] . ')</em>
-            </td>
-        </tr>
-        <tr>
-            <td style="border-left:4px solid #e74c3c; padding:6px; font-size:8px;">
-                <strong>Principal/Vice-Principal:</strong> ' . strip_tags($organized['remarks']['principal']) . '
-                <em>(Signed by: ' . $staff['principal'] . ')</em>
-            </td>
-        </tr>
-        </table>';
-        return $html;
-    }
+        $teacher_remark = trim((string)($organized['remarks']['teacher'] ?? ''));
+        $principal_remark = trim((string)($organized['remarks']['principal'] ?? ''));
 
-    private function render_announcements($announcements) {
-        if (empty($announcements['next_term']) && empty($announcements['fees']) && empty($announcements['general'])) {
-            return '';
+        if ($teacher_remark === '' && $principal_remark === '') return '';
+
+        $teacher_name = trim((string)($staff['teacher'] ?? ''));
+        $principal_name = trim((string)($staff['principal'] ?? ''));
+
+        $html = '<div style="background:#34495e;color:#fff;text-align:center;font-size:7px;font-weight:bold;line-height:8px;padding:1px;">REMARKS</div>';
+        $html .= '<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:1px;"><tr>';
+
+        if ($teacher_remark !== '') {
+            $width = $principal_remark !== '' ? 49 : 100;
+            $html .= '<td width="' . $width . '%" style="vertical-align:top;">'
+                . '<table width="100%" cellpadding="2" cellspacing="0" style="border:1px solid #c7d3df;background:#f7f9fb;">'
+                . '<tr><td style="font-size:6.2px;font-weight:bold;color:#2c3e50;">CLASS TEACHER</td></tr>'
+                . '<tr><td style="font-size:5.9px;line-height:6.9px;color:#222;">' . wp_kses_post($teacher_remark);
+            if ($teacher_name !== '') {
+                $html .= '<br><span style="font-size:5.5px;font-style:italic;">Signed by: ' . esc_html($teacher_name) . '</span>';
+            }
+            $html .= '</td></tr></table></td>';
         }
-        $html  = $this->section_header('Announcements');
-        $html .= $this->spacer(2);
-        if ($announcements['next_term']) $html .= '<p style="margin:2px 0;"><strong>Next Term Begins:</strong> '   . $announcements['next_term'] . '</p>';
-        if ($announcements['fees'])      $html .= '<p style="margin:2px 0;"><strong>Fees for Next Term:</strong> ' . $announcements['fees']      . '</p>';
-        if ($announcements['general'])   $html .= '<p style="margin:2px 0;"><strong>Announcement:</strong> '       . strip_tags($announcements['general']) . '</p>';
-        $html .= $this->spacer(6);
+
+        if ($teacher_remark !== '' && $principal_remark !== '') {
+            $html .= '<td width="2%"></td>';
+        }
+
+        if ($principal_remark !== '') {
+            $width = $teacher_remark !== '' ? 49 : 100;
+            $html .= '<td width="' . $width . '%" style="vertical-align:top;">'
+                . '<table width="100%" cellpadding="2" cellspacing="0" style="border:1px solid #c7d3df;background:#f7f9fb;">'
+                . '<tr><td style="font-size:6.2px;font-weight:bold;color:#2c3e50;">PRINCIPAL / VICE-PRINCIPAL</td></tr>'
+                . '<tr><td style="font-size:5.9px;line-height:6.9px;color:#222;">' . wp_kses_post($principal_remark);
+            if ($principal_name !== '') {
+                $html .= '<br><span style="font-size:5.5px;font-style:italic;">Signed by: ' . esc_html($principal_name) . '</span>';
+            }
+            $html .= '</td></tr></table></td>';
+        }
+
+        $html .= '</tr></table>';
         return $html;
     }
+    private function render_announcements($announcements) {
+        if (empty($announcements)) return '';
 
-    private function render_footer() {
-        return '<div style="margin-top:2px; border-top:1px solid #333; padding-top:1px; text-align:center; font-size:6.5px; line-height:8px;">
-            Petra Christian Academy • Generated on ' . date('F j, Y') . '
-        </div>';
+        $items = [];
+        if (!empty($announcements['next_term'])) $items[] = '<b>Next Term Begins:</b> ' . esc_html($announcements['next_term']);
+        if (!empty($announcements['fees'])) $items[] = '<b>Fees for Next Term:</b> ' . esc_html($announcements['fees']);
+        if (!empty($announcements['general'])) $items[] = '<b>Announcement:</b> ' . wp_kses_post($announcements['general']);
+
+        if (!$items) return '';
+
+        return '<div style="margin-top:1px;font-size:5.8px;line-height:6.8px;border-top:1px solid #bbb;padding-top:1px;">'
+            . implode(' &nbsp; | &nbsp; ', $items)
+            . '</div>';
     }
+    private function render_footer() {
+        return '<div style="margin-top:1px;border-top:1px solid #bbb;padding-top:1px;text-align:center;font-size:5.3px;line-height:6px;">'
+            . 'Petra Christian Academy &bull; Generated on ' . date_i18n('F j, Y')
+            . '</div>';
+    }
+
 
     // =========================================================================
     // TINY HELPERS
