@@ -74,6 +74,30 @@ class SRL_PDF_Generator {
             $pdf->SetAlpha(1);
         }
 
+        // Draw the school logo directly with TCPDF. Putting a local image inside
+        // writeHTML() can cause TCPDF to reserve an oversized table row.
+        if (file_exists($this->logo_path)) {
+            $pdf->Image(
+                $this->logo_path,
+                11,
+                7,
+                18,
+                0,
+                '',
+                '',
+                '',
+                false,
+                300,
+                '',
+                false,
+                false,
+                0,
+                false,
+                false,
+                false
+            );
+        }
+
         $is_third_term    = ($data['course_info']['term'] === '3rd Term');
         $is_exit_class    = $this->is_exit_class($data['course_info']['class']);
 
@@ -268,22 +292,12 @@ class SRL_PDF_Generator {
     private function render_page_header($usergrade, $student_data, $course_info) {
         $id_number = $usergrade['useridnumber'] ?? ($student_data['idnumber'] ?? 'N/A');
 
-        $html = '<table width="100%" cellpadding="0" cellspacing="0" style="margin:0;padding:0;"><tr>';
-
-        if (file_exists($this->logo_path)) {
-            $html .= '<td width="15%" style="vertical-align:top;text-align:left;">'
-                . '<img src="' . $this->logo_path . '" width="44" />'
-                . '</td>';
-        } else {
-            $html .= '<td width="15%"></td>';
-        }
-
-        $html .= '<td width="85%" style="text-align:center;vertical-align:top;">'
+        $html = '<div style="text-align:center;margin:0;padding:0;">'
             . '<div style="font-size:16px;font-weight:bold;line-height:17px;">PETRA CHRISTIAN ACADEMY</div>'
             . '<div style="font-size:6.8px;font-style:italic;font-weight:bold;line-height:8px;">Righteousness and Excellence</div>'
             . '<div style="font-size:6.2px;font-weight:bold;line-height:7px;">Telephone: +2348052755971, +2348166777788</div>'
             . '<div style="font-size:8.5px;font-weight:bold;line-height:10px;">STUDENT REPORT CARD</div>'
-            . '</td></tr></table>';
+            . '</div>';
 
         $html .= '<table width="100%" cellpadding="1" cellspacing="0" style="font-size:6.3px;line-height:7.4px;border-collapse:collapse;margin-top:1px;">'
             . '<tr>'
@@ -305,6 +319,7 @@ class SRL_PDF_Generator {
 
         return $html;
     }
+
     private function render_attendance_and_grade_scale($organized, $announcements) {
         $html = '<table style="width:100%;margin-top:1px;margin-bottom:1px;"><tr>';
 

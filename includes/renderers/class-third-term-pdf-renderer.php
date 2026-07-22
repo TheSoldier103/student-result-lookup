@@ -182,19 +182,6 @@ trait SRL_Third_Term_PDF_Renderer {
                 ['label' => 'CUMULATIVE', 'start' => 9, 'count' => 4, 'bg' => [8, 60, 120]],
             ];
 
-            foreach ($groups as $group) {
-                $x = $lm;
-                for ($i = 0; $i < $group['start']; $i++) $x += $cols[$i][1];
-                $w = 0;
-                for ($i = $group['start']; $i < $group['start'] + $group['count']; $i++) $w += $cols[$i][1];
-                $pdf->SetXY($x, $y);
-                $pdf->SetFillColor(...$group['bg']);
-                $pdf->SetDrawColor(0, 0, 0);
-                $pdf->SetTextColor(255, 255, 255);
-                $pdf->SetFont('dejavusans', 'B', 6.2);
-                $pdf->Cell($w, $subheader_h, $group['label'], 1, 0, 'C', true);
-            }
-
             // Expand to the full printable width and centre the table.
             $table_w = 0;
             foreach ($cols as $col) $table_w += $col[1];
@@ -256,7 +243,7 @@ trait SRL_Third_Term_PDF_Renderer {
         $pdf->SetDrawColor(0, 0, 0);
         $pdf->SetFillColor(255, 255, 255);
         $pdf->SetFont('dejavusans', '', 8);
-        $pdf->SetY($pdf->GetY() + 2);
+        $pdf->SetY($pdf->GetY() + 1);
     }
 
 
